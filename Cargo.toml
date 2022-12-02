@@ -1,0 +1,18 @@
+[package]
+name = "mls-assist"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+derive = "1.0.0"
+features = "0.10.0"
+openmls_traits = "0.1.0"
+serde = { version = "1.0.147", features = ["derive"] }
+tls_codec = { version = "0.2.0", features = ["derive", "serde_serialize", "mls"] }
+
+
+# Patching unreleased crates
+[patch.crates-io]
+tls_codec = { git = "https://github.com/RustCrypto/formats.git", features = ["derive", "serde_serialize", "mls"] }
