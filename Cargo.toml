@@ -10,7 +10,7 @@ derive = "1.0.0"
 features = "0.10.0"
 openmls_traits = "0.1.0"
 serde = { version = "1.0.147", features = ["derive"] }
-tls_codec = { version = "0.2.0", features = ["derive", "serde_serialize", "mls"] }
+tls_codec = { version = "0.2.0", features = ["derive", "serde", "mls"] }
 
 
 # Patching unreleased crates
