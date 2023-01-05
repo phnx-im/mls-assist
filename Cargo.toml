@@ -14,5 +14,8 @@ tls_codec = { version = "0.2.0", features = ["derive", "serde", "mls"] }
 
 
 # Patching unreleased crates
-[patch.crates-io]
-tls_codec = { git = "https://github.com/RustCrypto/formats.git", features = ["derive", "serde_serialize", "mls"] }
+[patch.crates-io.tls_codec]
+git = "https://github.com/RustCrypto/formats.git"
+
+[patch.crates-io.openmls_traits]
+git = "https://github.com/openmls/openmls.git"
