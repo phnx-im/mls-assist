@@ -11,11 +11,45 @@ mod validate_application;
 mod validate_commit;
 mod validate_proposal;
 
+/// The `LeafNode` struct from Section 7.2 of the MLS specification.
+///
+/// ```c
+/// struct {
+///     HPKEPublicKey encryption_key;
+///     SignaturePublicKey signature_key;
+///     Credential credential;
+///     Capabilities capabilities;
+///
+///     LeafNodeSource leaf_node_source;
+///     select (LeafNode.leaf_node_source) {
+///         case key_package:
+///             Lifetime lifetime;
+///
+///         case update:
+///             struct{};
+///
+///         case commit:
+///             opaque parent_hash<V>;
+///     };
+///
+///     Extension extensions<V>;
+///     /* SignWithLabel(., "LeafNodeTBS", LeafNodeTBS) */
+///     opaque signature<V>;
+/// } LeafNode;
+/// ```
+pub struct LeafNode {}
+
 pub struct Group {
     group_info: GroupInfo,
 }
 
 impl Group {
+    /// Create a new group state with the group consisting of the creator's
+    /// leaf.
+    pub fn new(group_info: GroupInfo, leaf_node: LeafNode) -> Self {
+        Self { group_info }
+    }
+
     pub fn merge_staged_commit(&mut self, _staged_commit: StagedCommit) {}
 
     pub fn public_tree() {}
