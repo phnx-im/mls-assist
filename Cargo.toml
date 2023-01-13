@@ -11,7 +11,7 @@ features = "0.10.0"
 openmls_traits = "0.1.0"
 serde = { version = "1.0.147", features = ["derive"] }
 tls_codec = { version = "0.2.0", features = ["derive", "serde", "mls"] }
-openmls = "0.4.1"
+openmls = { git = "https://github.com/openmls/openmls.git" }
 
 
 # Patching unreleased crates

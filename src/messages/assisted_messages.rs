@@ -7,7 +7,7 @@ pub enum AssistedMessage {
 }
 
 impl AssistedCommit {
-    fn new(mls_plaintext: MlsPlaintext, group_info: AssistedGroupInfo) -> Self {
+    fn new(mls_plaintext: PublicMessage, group_info: AssistedGroupInfo) -> Self {
         Self {
             commit: MlsPlaintext,
             assisted_group_info: group_info,

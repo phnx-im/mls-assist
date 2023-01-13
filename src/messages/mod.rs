@@ -1,3 +1,4 @@
+use openmls::prelude::MlsMessageIn;
 use crate::group::GroupInfo;
 
 mod commit;
