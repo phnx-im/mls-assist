@@ -3,7 +3,7 @@ use crate::group::GroupInfo;
 
 mod commit;
 mod proposals;
-mod assisted_messages;
+pub mod assisted_messages;
 
 pub struct MlsPlaintext;
 

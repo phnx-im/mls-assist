@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use tls_codec::{TlsDeserialize, TlsSerialize, TlsSize, VLBytes};
 
 use crate::{
-    messages::AssistedMessage,
+    messages::assisted_messages::AssistedMessage,
     pool::{Ciphersuite, Extension, ProtocolVersion},
 };
 
