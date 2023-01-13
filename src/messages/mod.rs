@@ -2,20 +2,12 @@ use crate::group::GroupInfo;
 
 mod commit;
 mod proposals;
+mod assisted_messages;
 
 pub struct MlsPlaintext;
 
-pub enum AssistedMessage {
-    Commit(AssistedCommit),
-    NonCommit(MlsPlaintext),
-}
+impl MlsPlaintext {
+    fn From(mls_plaintext: openmls::messages) {
 
-pub struct AssistedCommit {
-    commit: MlsPlaintext,
-    assisted_group_info: AssistedGroupInfo,
-}
-
-pub enum AssistedGroupInfo {
-    Full(GroupInfo),
-    Signature(Vec<u8>),
+    }
 }
