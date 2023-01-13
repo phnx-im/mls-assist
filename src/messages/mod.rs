@@ -7,8 +7,10 @@ mod assisted_messages;
 
 pub struct MlsPlaintext;
 
-impl MlsPlaintext {
-    fn From(mls_plaintext: openmls::messages) {
+impl From<MlsMessageIn> for MlsPlaintext {
+    fn from(mls_plaintext: MlsMessageIn) -> Self {
+        Self {
 
+        }
     }
 }

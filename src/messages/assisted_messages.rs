@@ -1,22 +1,23 @@
-use crate::group::GroupInfo;
+use openmls::prelude::GroupInfo;
 use crate::messages::MlsPlaintext;
+use openmls::framing::PublicMessage;
 
 pub enum AssistedMessage {
     Commit(AssistedCommit),
-    NonCommit(MlsPlaintext),
+    NonCommit(PublicMessage),
 }
 
 impl AssistedCommit {
     fn new(mls_plaintext: PublicMessage, group_info: AssistedGroupInfo) -> Self {
         Self {
-            commit: MlsPlaintext,
+            commit: mls_plaintext,
             assisted_group_info: group_info,
         }
     }
 }
 
 pub struct AssistedCommit {
-    commit: MlsPlaintext,
+    commit: PublicMessage,
     assisted_group_info: AssistedGroupInfo,
 }
 

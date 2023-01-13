@@ -1,4 +1,5 @@
 use super::*;
+use openmls::prelude::ProcessedMessage;
 
 impl Group {
     pub fn process_message(&mut self, assisted_message: AssistedMessage) -> ProcessedMessage {
@@ -8,5 +9,3 @@ impl Group {
         }
     }
 }
-
-pub struct ProcessedMessage {}

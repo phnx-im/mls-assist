@@ -40,21 +40,21 @@ mod validate_proposal;
 pub struct LeafNode {}
 
 pub struct Group {
-    group_info: GroupInfo,
+    group_info: openmls::prelude::GroupInfo,
 }
 
 impl Group {
     /// Create a new group state with the group consisting of the creator's
     /// leaf.
-    pub fn new(group_info: GroupInfo, leaf_node: LeafNode) -> Self {
+    pub fn new(group_info: openmls::prelude::GroupInfo, leaf_node: openmls::prelude::LeafNode) -> Self {
         Self { group_info }
     }
 
-    pub fn merge_staged_commit(&mut self, _staged_commit: StagedCommit) {}
+    pub fn merge_staged_commit(&mut self, _staged_commit: openmls::prelude::StagedCommit) {}
 
     pub fn public_tree() {}
 
-    pub fn group_info(&self) -> &GroupInfo {
+    pub fn group_info(&self) -> &openmls::prelude::GroupInfo {
         &self.group_info
     }
 
