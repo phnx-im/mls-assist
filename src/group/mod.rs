@@ -60,7 +60,8 @@ impl Group {
     }
 
     pub fn members(&self) -> impl Iterator<Item = Member> + '_ {
-        todo!()
+        // TODO
+        Vec::new()
     }
 }
 
