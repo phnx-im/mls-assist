@@ -59,7 +59,9 @@ impl Group {
         &self.group_info
     }
 
-    pub fn members(&self) -> impl Iterator<Item = Member> + '_ {}
+    pub fn members(&self) -> impl Iterator<Item = Member> + '_ {
+        todo!()
+    }
 }
 
 #[derive(
