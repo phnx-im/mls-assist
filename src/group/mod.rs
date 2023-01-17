@@ -61,7 +61,7 @@ impl Group {
 
     pub fn members(&self) -> impl Iterator<Item = Member> + '_ {
         // TODO
-        Vec::new()
+        Vec::new().iter()
     }
 }
 
