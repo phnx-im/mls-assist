@@ -1,3 +1,4 @@
+use openmls::prelude::Member;
 use serde::{Deserialize, Serialize};
 use tls_codec::{TlsDeserialize, TlsSerialize, TlsSize, VLBytes};
 
@@ -58,7 +59,7 @@ impl Group {
         &self.group_info
     }
 
-    pub fn members() {}
+    pub fn members(&self) -> impl Iterator<Item = Member> + '_ {}
 }
 
 #[derive(
