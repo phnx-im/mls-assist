@@ -10,7 +10,7 @@ derive = "1.0.0"
 features = "0.10.0"
 openmls_traits = "0.1.0"
 serde = { version = "1.0.147", features = ["derive"] }
-tls_codec = { version = "0.2.0", features = ["derive", "serde", "mls"] }
+tls_codec = { version = "0.2.0", features = ["derive", "serde_serialize", "mls"] }
 openmls = { git = "https://github.com/openmls/openmls.git" }
 
 
@@ -21,3 +21,15 @@ rev = "82760a834fa5a33956cd17020bb177f336ac6429"
 
 [patch.crates-io.openmls_traits]
 git = "https://github.com/openmls/openmls.git"
+
+[patch.crates-io.hpke-rs]
+git = "https://github.com/franziskuskiefer/hpke-rs.git"
+
+[patch.crates-io.hpke-rs-crypto]
+git = "https://github.com/franziskuskiefer/hpke-rs.git"
+
+[patch.crates-io.hpke-rs-evercrypt]
+git = "https://github.com/franziskuskiefer/hpke-rs.git"
+
+[patch.crates-io.hpke-rs-rust-crypto]
+git = "https://github.com/franziskuskiefer/hpke-rs.git"
