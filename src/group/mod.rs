@@ -41,6 +41,7 @@ mod validate_proposal;
 /// ```
 pub struct LeafNode {}
 
+#[derive(Clone)]
 pub struct Group {
     group_info: openmls::prelude::GroupInfo,
 }
