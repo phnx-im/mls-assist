@@ -1,3 +1,4 @@
+use std::iter;
 use openmls::prelude::Member;
 use serde::{Deserialize, Serialize};
 use tls_codec::{TlsDeserialize, TlsSerialize, TlsSize, VLBytes};
@@ -61,7 +62,7 @@ impl Group {
 
     pub fn members(&self) -> impl Iterator<Item = Member> + '_ {
         // TODO
-        Vec::new().iter()
+        iter::empty::<Member>()
     }
 }
 
