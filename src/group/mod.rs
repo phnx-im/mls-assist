@@ -1,5 +1,5 @@
 use std::iter;
-use openmls::prelude::Member;
+use openmls::prelude::{Member, Node};
 use serde::{Deserialize, Serialize};
 use tls_codec::{TlsDeserialize, TlsSerialize, TlsSize, VLBytes};
 
@@ -55,7 +55,9 @@ impl Group {
 
     pub fn merge_staged_commit(&mut self, _staged_commit: openmls::prelude::StagedCommit) {}
 
-    pub fn public_tree() {}
+    pub fn public_tree(&self) -> Vec<Option<Node>> {
+        Vec::new()
+    }
 
     pub fn group_info(&self) -> &openmls::prelude::GroupInfo {
         &self.group_info
