@@ -43,14 +43,30 @@ pub struct LeafNode {}
 
 #[derive(Clone)]
 pub struct Group {
-    group_info: openmls::prelude::GroupInfo,
+    group_info: GroupInfo,
 }
 
 impl Group {
     /// Create a new group state with the group consisting of the creator's
     /// leaf.
-    pub fn new(group_info: openmls::prelude::GroupInfo, leaf_node: openmls::prelude::LeafNode) -> Self {
-        Self { group_info }
+    pub fn new() -> Self {
+        Self { group_info: GroupInfo{
+            group_info_tbs: GroupInfoTBS {
+                group_context: GroupContext {
+                    protocol_version: ProtocolVersion,
+                    ciphersuite: Ciphersuite,
+                    group_id: GroupId,
+                    epoch: GroupEpoch,
+                    tree_hash: VLBytes::new(vec![]),
+                    confirmed_transcript_hash: VLBytes::new(vec![]),
+                    extensions: vec![],
+                },
+                extensions: vec![],
+                confirmation_tag: VLBytes::new(vec![]),
+                signer: 0,
+            },
+            signature: VLBytes::new(vec![]),
+        } }
     }
 
     pub fn merge_staged_commit(&mut self, _staged_commit: openmls::prelude::StagedCommit) {}
@@ -59,7 +75,7 @@ impl Group {
         Vec::new()
     }
 
-    pub fn group_info(&self) -> &openmls::prelude::GroupInfo {
+    pub fn group_info(&self) -> &GroupInfo {
         &self.group_info
     }
 

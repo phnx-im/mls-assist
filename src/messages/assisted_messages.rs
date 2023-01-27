@@ -1,6 +1,6 @@
-use openmls::prelude::GroupInfo;
 use crate::messages::MlsPlaintext;
 use openmls::framing::PublicMessage;
+use crate::group::GroupInfo;
 
 pub enum AssistedMessage {
     Commit(AssistedCommit),
