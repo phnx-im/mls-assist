@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use openmls::{
     prelude::Verifiable,
     prelude::{
@@ -5,7 +7,7 @@ use openmls::{
         CreationFromExternalError, ProposalStore, PublicGroup,
     },
     prelude::{
-        ConfirmationTag, LibraryError, OpenMlsSignaturePublicKey, ProcessedMessage,
+        ConfirmationTag, GroupEpoch, LibraryError, OpenMlsSignaturePublicKey, ProcessedMessage,
         ProcessedMessageContent, Sender, StagedCommit,
     },
     treesync::{LeafNode, Node},
@@ -15,14 +17,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::messages::{AssistedCommit, AssistedGroupInfo, AssistedMessage};
 
-use self::errors::ProcessAssistedMessageError;
+use self::{errors::ProcessAssistedMessageError, past_group_state::PastGroupState};
 
 pub mod errors;
+mod past_group_state;
 
 #[derive(Serialize, Deserialize)]
 pub struct Group {
     public_group: PublicGroup,
     group_info: GroupInfo,
+    past_group_states: HashMap<GroupEpoch, PastGroupState>,
     #[serde(skip)]
     backend: OpenMlsRustCrypto,
 }
@@ -46,6 +50,7 @@ impl Group {
             group_info,
             public_group,
             backend,
+            past_group_states: HashMap::new(),
         })
     }
 
@@ -54,7 +59,7 @@ impl Group {
     }
 
     /// Returns a [`ProcessedMessage`] for inspection.
-    pub fn process(
+    pub fn process_assisted_message(
         self,
         assisted_message: AssistedMessage,
     ) -> Result<ProcessedAssistedMessage, ProcessAssistedMessageError> {
