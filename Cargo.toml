@@ -11,6 +11,9 @@ features = "0.10.0"
 openmls_traits = "0.1.0"
 serde = { version = "1.0.147", features = ["derive"] }
 tls_codec = { version = "0.2.0", features = ["derive", "serde", "mls"] }
+openmls = { path = "../../openmls/openmls/openmls" }
+openmls_rust_crypto = { version = "0.1.0", path = "../../openmls/openmls/openmls_rust_crypto" }
+thiserror = "^1.0"
 
 
 # Patching unreleased crates
@@ -19,3 +22,16 @@ git = "https://github.com/RustCrypto/formats.git"
 
 [patch.crates-io.openmls_traits]
 git = "https://github.com/openmls/openmls.git"
+
+##[patch.crates-io.openmls]
+##git = "https://github.com/openmls/openmls.git"
+##branch = "konrad/public_group_api"
+
+[patch.crates-io.hpke-rs]
+git = "https://github.com/franziskuskiefer/hpke-rs.git"
+
+[patch.crates-io.hpke-rs-crypto]
+git = "https://github.com/franziskuskiefer/hpke-rs.git"
+
+[patch.crates-io.hpke-rs-rust-crypto]
+git = "https://github.com/franziskuskiefer/hpke-rs.git"

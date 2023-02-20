@@ -1,21 +1,48 @@
-use crate::group::GroupInfo;
+use openmls::{
+    framing::PublicMessage,
+    prelude::{
+        group_info::VerifiableGroupInfo, ConfirmationTag, Extensions, GroupContext, LeafNodeIndex,
+        Signature,
+    },
+};
 
-mod commit;
-mod proposals;
-
-pub struct MlsPlaintext;
-
+/// TODO: When deserializing this, make sure it errors out if the message type
+/// doesn't fit.
+#[repr(u8)]
 pub enum AssistedMessage {
     Commit(AssistedCommit),
-    NonCommit(MlsPlaintext),
+    NonCommit(PublicMessage),
 }
 
 pub struct AssistedCommit {
-    commit: MlsPlaintext,
-    assisted_group_info: AssistedGroupInfo,
+    pub commit: PublicMessage,
+    pub assisted_group_info: AssistedGroupInfo,
 }
 
+#[repr(u8)]
 pub enum AssistedGroupInfo {
-    Full(GroupInfo),
-    Signature(Vec<u8>),
+    Full(VerifiableGroupInfo),
+    SignatureAndExtensions((Signature, Extensions)),
+}
+
+impl AssistedGroupInfo {
+    pub fn into_verifiable_group_info(
+        self,
+        sender_index: LeafNodeIndex,
+        group_context: GroupContext,
+        confirmation_tag: ConfirmationTag,
+    ) -> VerifiableGroupInfo {
+        match self {
+            AssistedGroupInfo::Full(group_info) => group_info,
+            AssistedGroupInfo::SignatureAndExtensions((signature, extensions)) => {
+                VerifiableGroupInfo::new(
+                    group_context,
+                    extensions,
+                    confirmation_tag,
+                    sender_index,
+                    signature,
+                )
+            }
+        }
+    }
 }
