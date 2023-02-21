@@ -5,12 +5,12 @@ use openmls::{
         CreationFromExternalError, ProposalStore, PublicGroup,
     },
     prelude::{
-        ConfirmationTag, LibraryError, OpenMlsSignaturePublicKey, ProcessedMessage,
-        ProcessedMessageContent, Sender, StagedCommit,
+        ConfirmationTag, LibraryError, OpenMlsCryptoProvider, OpenMlsSignaturePublicKey,
+        ProcessedMessage, ProcessedMessageContent, Sender, StagedCommit,
     },
     treesync::{LeafNode, Node},
 };
-use openmls_rust_crypto::{OpenMlsCryptoProvider, OpenMlsRustCrypto};
+use openmls_rust_crypto::OpenMlsRustCrypto;
 use serde::{Deserialize, Serialize};
 
 use crate::messages::{AssistedCommit, AssistedGroupInfo, AssistedMessage};
