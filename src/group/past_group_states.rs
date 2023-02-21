@@ -48,4 +48,10 @@ impl PastGroupStates {
             }
         });
     }
+
+    pub fn get(&mut self, epoch: &GroupEpoch) -> Option<&[Option<Node>]> {
+        self.past_group_states
+            .get(epoch)
+            .map(|nodes| nodes.as_slice())
+    }
 }

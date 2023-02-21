@@ -1,7 +1,7 @@
 use openmls::{
     prelude::{
         group_info::{GroupInfo, VerifiableGroupInfo},
-        ConfirmationTag, CreationFromExternalError, LeafNodeIndex, LibraryError,
+        ConfirmationTag, CreationFromExternalError, GroupEpoch, LeafNodeIndex, LibraryError,
         OpenMlsSignaturePublicKey, ProcessedMessage, ProcessedMessageContent, ProposalStore,
         PublicGroup, Sender, SignaturePublicKey, StagedCommit, Verifiable,
     },
@@ -129,6 +129,10 @@ impl Group {
 
     pub fn group_info(&self) -> &GroupInfo {
         &self.group_info
+    }
+
+    pub fn past_group_state(&mut self, epoch: &GroupEpoch) -> Option<&[Option<Node>]> {
+        self.past_group_states.get(epoch)
     }
 }
 
