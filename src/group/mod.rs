@@ -107,6 +107,8 @@ impl Group {
         }
     }
 
+    /// Accept the changes contained in the [`ProcessedAsssistedMessage`] and
+    /// update this [`Group`] accordingly.
     pub fn accept_message(&mut self, processed_assisted_message: ProcessedAssistedMessage) {
         let processed_message = match processed_assisted_message {
             ProcessedAssistedMessage::NonCommit(processed_message) => processed_message,
