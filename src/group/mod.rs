@@ -1,14 +1,9 @@
-use std::collections::HashMap;
-
 use openmls::{
-    prelude::Verifiable,
     prelude::{
         group_info::{GroupInfo, VerifiableGroupInfo},
-        CreationFromExternalError, ProposalStore, PublicGroup,
-    },
-    prelude::{
-        ConfirmationTag, GroupEpoch, LibraryError, OpenMlsSignaturePublicKey, ProcessedMessage,
-        ProcessedMessageContent, Sender, StagedCommit,
+        ConfirmationTag, CreationFromExternalError, LeafNodeIndex, LibraryError,
+        OpenMlsSignaturePublicKey, ProcessedMessage, ProcessedMessageContent, ProposalStore,
+        PublicGroup, Sender, SignaturePublicKey, StagedCommit, Verifiable,
     },
     treesync::{LeafNode, Node},
 };
@@ -17,16 +12,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::messages::{AssistedCommit, AssistedGroupInfo, AssistedMessage};
 
-use self::{errors::ProcessAssistedMessageError, past_group_state::PastGroupState};
+use self::{errors::ProcessAssistedMessageError, past_group_states::PastGroupStates};
 
 pub mod errors;
-mod past_group_state;
+mod past_group_states;
+pub mod process;
 
 #[derive(Serialize, Deserialize)]
 pub struct Group {
     public_group: PublicGroup,
     group_info: GroupInfo,
-    past_group_states: HashMap<GroupEpoch, PastGroupState>,
+    past_group_states: PastGroupStates,
     #[serde(skip)]
     backend: OpenMlsRustCrypto,
 }
@@ -50,7 +46,7 @@ impl Group {
             group_info,
             public_group,
             backend,
-            past_group_states: HashMap::new(),
+            past_group_states: PastGroupStates::default(),
         })
     }
 
@@ -58,61 +54,10 @@ impl Group {
         &self.backend
     }
 
-    /// Returns a [`ProcessedMessage`] for inspection.
-    pub fn process_assisted_message(
-        self,
-        assisted_message: AssistedMessage,
-    ) -> Result<ProcessedAssistedMessage, ProcessAssistedMessageError> {
-        match assisted_message {
-            AssistedMessage::NonCommit(public_message) => {
-                let processed_message = self
-                    .public_group
-                    .process_message(self.backend(), public_message)?;
-                Ok(ProcessedAssistedMessage::NonCommit(processed_message))
-            }
-            AssistedMessage::Commit(AssistedCommit {
-                commit,
-                assisted_group_info,
-            }) => {
-                // First process the message, then verify that the group info
-                // checks out.
-                let processed_message = self
-                    .public_group
-                    .process_message(self.backend(), commit.clone())?;
-                let sender = processed_message.sender().clone();
-                let confirmation_tag = commit
-                    .confirmation_tag()
-                    .ok_or(LibraryError::custom(
-                        "No confirmation tag in commit after validation.",
-                    ))?
-                    .clone();
-                if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
-                    processed_message.content()
-                {
-                    let group_info: GroupInfo = self.validate_group_info(
-                        sender,
-                        staged_commit,
-                        confirmation_tag,
-                        assisted_group_info,
-                    )?;
-                    // This is really only relevant for the "Full" group info case above.
-                    if group_info.group_context() != staged_commit.staged_context() {
-                        return Err(ProcessAssistedMessageError::InconsistentGroupContext);
-                    }
-                    Ok(ProcessedAssistedMessage::Commit(
-                        processed_message,
-                        group_info,
-                    ))
-                } else {
-                    Err(ProcessAssistedMessageError::LibraryError(
-                        LibraryError::custom("Mismatching message type."),
-                    ))
-                }
-            }
-        }
-    }
-
-    pub fn accept_message(&mut self, processed_assisted_message: ProcessedAssistedMessage) {
+    pub fn accept_processed_message(
+        &mut self,
+        processed_assisted_message: ProcessedAssistedMessage,
+    ) {
         let processed_message = match processed_assisted_message {
             ProcessedAssistedMessage::NonCommit(processed_message) => processed_message,
             ProcessedAssistedMessage::Commit(processed_message, group_info) => {
@@ -120,57 +65,70 @@ impl Group {
                 processed_message
             }
         };
-        self.public_group.finalize_processing(processed_message)
+        let (added_potential_joiners, removed_potential_joiners) =
+            if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
+                processed_message.content()
+            {
+                // We want to add a new state for members that were added to the
+                // group via an Add proposal.
+                let added_potential_joiners = staged_commit
+                    .add_proposals()
+                    .map(|add_proposal| {
+                        add_proposal
+                            .add_proposal()
+                            .key_package()
+                            .leaf_node()
+                            .signature_key()
+                            .clone()
+                    })
+                    .collect();
+
+                // We want to remove past group states if the corresponding
+                // potential joiners are removed from the group ...
+                let removed_indices: Vec<LeafNodeIndex> = staged_commit
+                    .remove_proposals()
+                    .map(|remove| remove.remove_proposal().removed())
+                    .collect();
+
+                let mut removed_potential_joiners: Vec<SignaturePublicKey> = self
+                    .public_group
+                    .members()
+                    .filter_map(|member| {
+                        if removed_indices.contains(&member.index) {
+                            Some(member.signature_key.into())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                // ... or if they perform an update (showing that they already have the state they need).
+                if let Sender::Member(leaf_index) = processed_message.sender() {
+                    if let Some(sender_leaf_node) = self.public_group.leaf(*leaf_index) {
+                        removed_potential_joiners.push(sender_leaf_node.signature_key().clone());
+                    }
+                }
+
+                (added_potential_joiners, removed_potential_joiners)
+            } else {
+                (vec![], vec![])
+            };
+        self.public_group.finalize_processing(processed_message);
+        // Check if any potential joiners were removed ...
+        self.past_group_states
+            .remove_potential_joiners(&removed_potential_joiners);
+        // ... or added.
+        self.past_group_states.add_state(
+            // Note that we're saving the group state after merging the staged
+            // commit.
+            self.public_group.group_context().epoch(),
+            self.public_group.export_nodes(),
+            added_potential_joiners,
+        );
     }
 
     pub fn group_info(&self) -> &GroupInfo {
         &self.group_info
-    }
-
-    fn validate_group_info(
-        &self,
-        sender: Sender,
-        staged_commit: &StagedCommit,
-        confirmation_tag: ConfirmationTag,
-        assisted_group_info: AssistedGroupInfo,
-    ) -> Result<GroupInfo, ProcessAssistedMessageError> {
-        let sender_index = match sender {
-            Sender::Member(leaf_index) => leaf_index,
-            Sender::NewMemberCommit => self.public_group.free_leaf_index_after_remove(
-                staged_commit.inline_proposals().map(|p| p.proposal()),
-            )?,
-            Sender::External(_) | Sender::NewMemberProposal => {
-                return Err(ProcessAssistedMessageError::LibraryError(
-                    LibraryError::custom("Invalid sender after validation."),
-                ))
-            }
-        };
-        let verifiable_group_info = assisted_group_info.into_verifiable_group_info(
-            sender_index,
-            staged_commit.staged_context().clone(),
-            confirmation_tag,
-        );
-
-        let sender_pk = self
-            .public_group
-            .members()
-            .find_map(|m| {
-                if m.index == sender_index {
-                    Some(m.signature_key)
-                } else {
-                    None
-                }
-            })
-            .map(|pk_bytes| {
-                OpenMlsSignaturePublicKey::from_signature_key(
-                    pk_bytes.into(),
-                    verifiable_group_info.ciphersuite().into(),
-                )
-            })
-            .ok_or(ProcessAssistedMessageError::UnknownSender)?;
-        verifiable_group_info
-            .verify(self.backend().crypto(), &sender_pk)
-            .map_err(|_| ProcessAssistedMessageError::InvalidGroupInfoSignature)
     }
 }
 
