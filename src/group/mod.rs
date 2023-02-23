@@ -1,3 +1,4 @@
+use chrono::Duration;
 use openmls::{
     prelude::{
         group_info::{GroupInfo, VerifiableGroupInfo},
@@ -57,6 +58,7 @@ impl Group {
     pub fn accept_processed_message(
         &mut self,
         processed_assisted_message: ProcessedAssistedMessage,
+        expiration_time: Duration,
     ) {
         let processed_message = match processed_assisted_message {
             ProcessedAssistedMessage::NonCommit(processed_message) => processed_message,
@@ -65,7 +67,7 @@ impl Group {
                 processed_message
             }
         };
-        let (added_potential_joiners, removed_potential_joiners) =
+        let added_potential_joiners =
             if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
                 processed_message.content()
             {
@@ -83,48 +85,22 @@ impl Group {
                     })
                     .collect();
 
-                // We want to remove past group states if the corresponding
-                // potential joiners are removed from the group ...
-                let removed_indices: Vec<LeafNodeIndex> = staged_commit
-                    .remove_proposals()
-                    .map(|remove| remove.remove_proposal().removed())
-                    .collect();
-
-                let mut removed_potential_joiners: Vec<SignaturePublicKey> = self
-                    .public_group
-                    .members()
-                    .filter_map(|member| {
-                        if removed_indices.contains(&member.index) {
-                            Some(member.signature_key.into())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                // ... or if they perform an update (showing that they already have the state they need).
-                if let Sender::Member(leaf_index) = processed_message.sender() {
-                    if let Some(sender_leaf_node) = self.public_group.leaf(*leaf_index) {
-                        removed_potential_joiners.push(sender_leaf_node.signature_key().clone());
-                    }
-                }
-
-                (added_potential_joiners, removed_potential_joiners)
+                added_potential_joiners
             } else {
-                (vec![], vec![])
+                vec![]
             };
         self.public_group.finalize_processing(processed_message);
-        // Check if any potential joiners were removed ...
-        self.past_group_states
-            .remove_potential_joiners(&removed_potential_joiners);
-        // ... or added.
+        // Check if any potential joiners were added.
         self.past_group_states.add_state(
             // Note that we're saving the group state after merging the staged
             // commit.
             self.public_group.group_context().epoch(),
             self.public_group.export_nodes(),
-            added_potential_joiners,
+            &added_potential_joiners,
         );
+        // Check if any past group state has expired.
+        self.past_group_states
+            .remove_expired_states(expiration_time)
     }
 
     pub fn group_info(&self) -> &GroupInfo {
@@ -135,8 +111,15 @@ impl Group {
         self.public_group.group_context().epoch()
     }
 
-    pub fn past_group_state(&mut self, epoch: &GroupEpoch) -> Option<&[Option<Node>]> {
-        self.past_group_states.get(epoch)
+    /// Get the nodes of the past group state with the given epoch for the given
+    /// joiner. Returns `None` if there is no past group state for that epoch
+    /// and the given joiner.
+    pub fn past_group_state(
+        &mut self,
+        epoch: &GroupEpoch,
+        joiner: &SignaturePublicKey,
+    ) -> Option<&[Option<Node>]> {
+        self.past_group_states.get_for_joiner(epoch, joiner)
     }
 
     pub fn leaf(&self, leaf_index: LeafNodeIndex) -> Option<&LeafNode> {

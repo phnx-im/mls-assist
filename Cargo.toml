@@ -14,6 +14,7 @@ tls_codec = { version = "0.2.0", features = ["derive", "serde", "mls"] }
 openmls = { git = "https://github.com/openmls/openmls.git", branch = "konrad/public_group_interface" }
 openmls_rust_crypto = { git = "https://github.com/openmls/openmls.git", branch = "konrad/public_group_interface" }
 thiserror = "^1.0"
+chrono = {version = "0.4.19", features = ["serde"]}
 
 
 # Patching unreleased crates
