@@ -1,3 +1,5 @@
+use openmls::prelude::OpenMlsCryptoProvider;
+
 use super::*;
 
 impl Group {

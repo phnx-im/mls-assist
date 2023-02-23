@@ -7,7 +7,7 @@ use openmls::{
     },
     treesync::{LeafNode, Node},
 };
-use openmls_rust_crypto::{OpenMlsCryptoProvider, OpenMlsRustCrypto};
+use openmls_rust_crypto::OpenMlsRustCrypto;
 use serde::{Deserialize, Serialize};
 
 use crate::messages::{AssistedCommit, AssistedGroupInfo, AssistedMessage};
@@ -131,8 +131,16 @@ impl Group {
         &self.group_info
     }
 
+    pub fn epoch(&self) -> GroupEpoch {
+        self.public_group.group_context().epoch()
+    }
+
     pub fn past_group_state(&mut self, epoch: &GroupEpoch) -> Option<&[Option<Node>]> {
         self.past_group_states.get(epoch)
+    }
+
+    pub fn leaf(&self, leaf_index: LeafNodeIndex) -> Option<&LeafNode> {
+        self.public_group.leaf(leaf_index)
     }
 }
 
