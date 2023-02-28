@@ -13,6 +13,9 @@ pub enum ProcessAssistedMessageError {
     /// Invalid group info signature.
     #[error("Invalid group info signature.")]
     InvalidGroupInfoSignature,
+    /// Invalid group info message.
+    #[error("Invalid group info message.")]
+    InvalidGroupInfoMessage,
     /// The message's wire format is incompatible with the group's wire format policy.
     #[error("The message's wire format is incompatible with the group's wire format policy.")]
     IncompatibleWireFormat,

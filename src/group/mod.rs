@@ -4,7 +4,7 @@ use openmls::{
         group_info::{GroupInfo, VerifiableGroupInfo},
         ConfirmationTag, CreationFromExternalError, GroupEpoch, LeafNodeIndex, LibraryError,
         OpenMlsSignaturePublicKey, ProcessedMessage, ProcessedMessageContent, ProposalStore,
-        PublicGroup, Sender, SignaturePublicKey, StagedCommit, Verifiable,
+        PublicGroup, Sender, SignaturePublicKey, StagedCommit,
     },
     treesync::{LeafNode, Node},
 };
@@ -130,4 +130,14 @@ impl Group {
 pub enum ProcessedAssistedMessage {
     NonCommit(ProcessedMessage),
     Commit(ProcessedMessage, GroupInfo),
+}
+
+impl ProcessedAssistedMessage {
+    pub fn sender(&self) -> &Sender {
+        match self {
+            ProcessedAssistedMessage::NonCommit(pm) | ProcessedAssistedMessage::Commit(pm, _) => {
+                pm.sender()
+            }
+        }
+    }
 }

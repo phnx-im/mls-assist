@@ -1,4 +1,4 @@
-use openmls::prelude::OpenMlsCryptoProvider;
+use openmls::prelude::{OpenMlsCryptoProvider, Verifiable};
 
 use super::*;
 
@@ -78,11 +78,13 @@ impl Group {
                 ))
             }
         };
-        let verifiable_group_info = assisted_group_info.into_verifiable_group_info(
-            sender_index,
-            staged_commit.staged_context().clone(),
-            confirmation_tag,
-        );
+        let verifiable_group_info = assisted_group_info
+            .try_into_verifiable_group_info(
+                sender_index,
+                staged_commit.staged_context().clone(),
+                confirmation_tag,
+            )
+            .map_err(|_| ProcessAssistedMessageError::InvalidGroupInfoMessage)?;
 
         let sender_pk = self
             .public_group
