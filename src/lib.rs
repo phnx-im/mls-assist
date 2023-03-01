@@ -1,7 +1,7 @@
 pub use openmls::messages::group_info::VerifiableGroupInfo;
 pub use openmls::prelude::{
     GroupEpoch, GroupId, KeyPackage, LeafNode, LeafNodeIndex, OpenMlsCrypto, OpenMlsCryptoProvider,
-    Sender, SignaturePublicKey, SignatureScheme,
+    ProcessedMessageContent, Sender, SignaturePublicKey, SignatureScheme,
 };
 pub use openmls_rust_crypto::OpenMlsRustCrypto;
 
