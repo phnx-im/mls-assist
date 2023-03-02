@@ -6,15 +6,14 @@ use openmls::{
         Signature, Welcome,
     },
 };
-use serde::{Deserialize, Serialize};
-use tls_codec::{Deserialize as TlsDeserializeTrait, TlsDeserialize, TlsSize};
+use tls_codec::{Deserialize as TlsDeserializeTrait, TlsDeserialize, TlsSerialize, TlsSize};
 
 pub enum DeserializationError {
     InvalidMessage,
     MissingGroupInfo,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(TlsSerialize, TlsDeserialize, TlsSize, Clone)]
 pub struct SerializedAssistedMessage {
     mls_message_bytes: Vec<u8>,
     group_info_bytes_option: Option<Vec<u8>>,
