@@ -2,8 +2,8 @@ use openmls::{
     framing::PublicMessage,
     prelude::{
         group_info::VerifiableGroupInfo, ConfirmationTag, ContentType, Extensions, GroupContext,
-        GroupEpoch, GroupId, LeafNodeIndex, MlsMessageIn, MlsMessageInBody, ProtocolMessage,
-        Signature, Welcome,
+        GroupEpoch, GroupId, KeyPackageRef, LeafNodeIndex, MlsMessageIn, MlsMessageInBody,
+        ProtocolMessage, Signature, Welcome,
     },
 };
 use tls_codec::{Deserialize as TlsDeserializeTrait, TlsDeserialize, TlsSerialize, TlsSize};
@@ -130,4 +130,13 @@ impl AssistedGroupInfo {
 #[derive(TlsDeserialize, TlsSize)]
 pub struct AssistedWelcome {
     welcome: Welcome,
+}
+
+impl AssistedWelcome {
+    pub fn joiners(&self) -> impl Iterator<Item = KeyPackageRef> + '_ {
+        self.welcome
+            .secrets()
+            .iter()
+            .map(|secret| secret.new_member())
+    }
 }
