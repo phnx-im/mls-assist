@@ -63,6 +63,7 @@ impl TryInto<AssistedMessage> for &SerializedAssistedMessage {
     }
 }
 
+#[derive(Clone)]
 pub enum AssistedMessage {
     Commit(AssistedCommit),
     NonCommit(ProtocolMessage),
@@ -94,6 +95,44 @@ impl AssistedMessage {
                 ProtocolMessage::PublicMessage(pm) => pm.sender().into(),
             },
         }
+    }
+
+    /// Deserialize the given bytes into an [`AssistedMessage`] and return it,
+    /// together with the serialized [`MlsMessage`] part of the
+    /// [`AssistedMessage`].
+    pub fn try_from_bytes(mut bytes: Vec<u8>) -> Result<(Self, Vec<u8>), tls_codec::Error> {
+        let mut bytes_reader = bytes.as_slice();
+        let len_before_read = bytes.len();
+        // First deserialize the main message.
+        let mls_message = MlsMessageIn::tls_deserialize(&mut bytes_reader)?;
+        let mls_message_len = bytes_reader.len() - len_before_read;
+        // If it's a commit, we have to check for the assisted group info.
+        let assisted_message = match mls_message.extract() {
+            // We don't accept Welcomes, GroupInfos or KeyPackages.
+            MlsMessageInBody::Welcome(_)
+            | MlsMessageInBody::GroupInfo(_)
+            | MlsMessageInBody::KeyPackage(_) => return Err(tls_codec::Error::InvalidInput),
+            // Private messages are Okay, but we can't really do anything with them.
+            MlsMessageInBody::PrivateMessage(private_message) => {
+                AssistedMessage::NonCommit(private_message.into())
+            }
+            // We are only able to process public messages
+            MlsMessageInBody::PublicMessage(public_message) => {
+                if matches!(public_message.content_type(), ContentType::Commit) {
+                    let assisted_group_info =
+                        AssistedGroupInfo::tls_deserialize(&mut bytes_reader)?;
+                    let assisted_commit = AssistedCommit {
+                        commit: public_message,
+                        assisted_group_info,
+                    };
+                    AssistedMessage::Commit(assisted_commit)
+                } else {
+                    AssistedMessage::NonCommit(public_message.into())
+                }
+            }
+        };
+        bytes.truncate(mls_message_len);
+        Ok((assisted_message, bytes))
     }
 }
 
