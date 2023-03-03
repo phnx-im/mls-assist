@@ -8,6 +8,8 @@ use openmls::{
 };
 use tls_codec::{Deserialize as TlsDeserializeTrait, TlsDeserialize, TlsSerialize, TlsSize};
 
+pub mod codec;
+
 pub enum DeserializationError {
     InvalidMessage,
     MissingGroupInfo,
@@ -83,12 +85,13 @@ impl AssistedMessage {
     }
 }
 
+#[derive(TlsDeserialize, TlsSize, Clone)]
 pub struct AssistedCommit {
     pub commit: PublicMessage,
     pub assisted_group_info: AssistedGroupInfo,
 }
 
-#[derive(TlsDeserialize, TlsSize)]
+#[derive(TlsDeserialize, TlsSize, Clone)]
 #[repr(u8)]
 pub enum AssistedGroupInfo {
     Full(MlsMessageIn),

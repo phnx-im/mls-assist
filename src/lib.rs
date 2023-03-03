@@ -7,4 +7,3 @@ pub use openmls_rust_crypto::OpenMlsRustCrypto;
 
 pub mod group;
 pub mod messages;
-pub(crate) mod pool;
