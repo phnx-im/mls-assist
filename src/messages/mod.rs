@@ -3,7 +3,7 @@ use openmls::{
     prelude::{
         group_info::VerifiableGroupInfo, ConfirmationTag, ContentType, Extensions, GroupContext,
         GroupEpoch, GroupId, KeyPackageRef, LeafNodeIndex, MlsMessageIn, MlsMessageInBody,
-        ProtocolMessage, Signature, Welcome,
+        ProtocolMessage, Sender, Signature, Welcome,
     },
 };
 use tls_codec::{Deserialize as TlsDeserializeTrait, TlsDeserialize, TlsSerialize, TlsSize};
@@ -81,6 +81,18 @@ impl AssistedMessage {
         match self {
             AssistedMessage::Commit(ac) => ac.commit.epoch(),
             AssistedMessage::NonCommit(non_commit) => non_commit.epoch(),
+        }
+    }
+
+    // Returns the sender of the message if the message is a [`PublicMessage`]
+    // or `None` if the message is a `PrivateMessage`.
+    pub fn sender(&self) -> Option<&Sender> {
+        match self {
+            AssistedMessage::Commit(c) => c.commit.sender().into(),
+            AssistedMessage::NonCommit(nc) => match nc {
+                ProtocolMessage::PrivateMessage(_) => None,
+                ProtocolMessage::PublicMessage(pm) => pm.sender().into(),
+            },
         }
     }
 }
