@@ -100,7 +100,7 @@ impl AssistedMessage {
     /// Deserialize the given bytes into an [`AssistedMessage`] and return it,
     /// together with the serialized [`MlsMessage`] part of the
     /// [`AssistedMessage`].
-    pub fn try_from_bytes(mut bytes: &[u8]) -> Result<Self, tls_codec::Error> {
+    pub fn try_from_bytes(mut bytes: &[u8]) -> Result<(&[u8], Self), tls_codec::Error> {
         // First deserialize the main message.
         let mls_message = MlsMessageIn::tls_deserialize(&mut bytes)?;
         // If it's a commit, we have to check for the assisted group info.
@@ -127,7 +127,7 @@ impl AssistedMessage {
                 }
             }
         };
-        Ok(assisted_message)
+        Ok((bytes, assisted_message))
     }
 }
 
