@@ -100,12 +100,10 @@ impl AssistedMessage {
     /// Deserialize the given bytes into an [`AssistedMessage`] and return it,
     /// together with the serialized [`MlsMessage`] part of the
     /// [`AssistedMessage`].
-    pub fn try_from_bytes(mut bytes: Vec<u8>) -> Result<(Self, Vec<u8>), tls_codec::Error> {
+    pub fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, tls_codec::Error> {
         let mut bytes_reader = bytes.as_slice();
-        let len_before_read = bytes.len();
         // First deserialize the main message.
         let mls_message = MlsMessageIn::tls_deserialize(&mut bytes_reader)?;
-        let mls_message_len = bytes_reader.len() - len_before_read;
         // If it's a commit, we have to check for the assisted group info.
         let assisted_message = match mls_message.extract() {
             // We don't accept Welcomes, GroupInfos or KeyPackages.
@@ -131,8 +129,7 @@ impl AssistedMessage {
                 }
             }
         };
-        bytes.truncate(mls_message_len);
-        Ok((assisted_message, bytes))
+        Ok(assisted_message)
     }
 }
 
