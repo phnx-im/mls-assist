@@ -3,8 +3,8 @@ use openmls::{
     prelude::{
         group_info::{GroupInfo, VerifiableGroupInfo},
         ConfirmationTag, CreationFromExternalError, GroupEpoch, LeafNodeIndex, LibraryError,
-        OpenMlsSignaturePublicKey, ProcessedMessage, ProcessedMessageContent, ProposalStore,
-        PublicGroup, Sender, SignaturePublicKey, StagedCommit,
+        Member, OpenMlsSignaturePublicKey, ProcessedMessage, ProcessedMessageContent,
+        ProposalStore, PublicGroup, Sender, SignaturePublicKey, StagedCommit,
     },
     treesync::{LeafNode, Node},
 };
@@ -124,6 +124,10 @@ impl Group {
 
     pub fn leaf(&self, leaf_index: LeafNodeIndex) -> Option<&LeafNode> {
         self.public_group.leaf(leaf_index)
+    }
+
+    pub fn members(&self) -> impl Iterator<Item = Member> + '_ {
+        self.public_group.members()
     }
 }
 
