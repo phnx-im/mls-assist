@@ -173,7 +173,7 @@ impl AssistedGroupInfo {
     }
 }
 
-#[derive(TlsDeserialize, TlsSize)]
+#[derive(TlsSerialize, TlsDeserialize, TlsSize, Clone)]
 pub struct AssistedWelcome {
     welcome: Welcome,
 }
