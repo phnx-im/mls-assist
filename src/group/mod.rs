@@ -107,6 +107,10 @@ impl Group {
         &self.group_info
     }
 
+    pub fn export_ratchet_tree(&self) -> Vec<Option<Node>> {
+        self.public_group.export_nodes()
+    }
+
     pub fn epoch(&self) -> GroupEpoch {
         self.public_group.group_context().epoch()
     }
