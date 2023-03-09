@@ -1,5 +1,6 @@
 pub use openmls::messages::group_info::VerifiableGroupInfo;
 pub use openmls::{
+    framing::ProcessedMessage,
     prelude::{
         group_info::GroupInfo, Extensions, GroupEpoch, GroupId, KeyPackage, KeyPackageRef,
         LeafNodeIndex, Member, OpenMlsCrypto, OpenMlsCryptoProvider, ProcessedMessageContent,
