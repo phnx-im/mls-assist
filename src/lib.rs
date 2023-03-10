@@ -4,8 +4,8 @@ pub use openmls::{
     prelude::{
         group_info::GroupInfo, Extensions, GroupEpoch, GroupId, KeyPackage, KeyPackageRef,
         LeafNodeIndex, Member, OpenMlsCrypto, OpenMlsCryptoProvider, ProcessedMessageContent,
-        QueueConfigExtension, QueuedRemoveProposal, Sender, SignaturePublicKey, SignatureScheme,
-        StagedCommit,
+        Proposal, QueueConfigExtension, QueuedRemoveProposal, Sender, SignaturePublicKey,
+        SignatureScheme, StagedCommit,
     },
     treesync::{LeafNode, Node},
 };
