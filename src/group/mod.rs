@@ -9,6 +9,7 @@ use openmls::{
     treesync::{LeafNode, RatchetTree, RatchetTreeIn},
 };
 use openmls_rust_crypto::OpenMlsRustCrypto;
+use serde::{Deserialize, Serialize};
 
 use crate::messages::{AssistedCommit, AssistedGroupInfoIn, AssistedMessage};
 
@@ -18,12 +19,12 @@ pub mod errors;
 mod past_group_states;
 pub mod process;
 
-// TODO: Persistence. We can solve this as OpenMLS has a consistent persistence
-// story upstream.
+#[derive(Serialize, Deserialize)]
 pub struct Group {
     public_group: PublicGroup,
     group_info: GroupInfo,
     past_group_states: PastGroupStates,
+    #[serde(skip)]
     backend: OpenMlsRustCrypto,
 }
 
