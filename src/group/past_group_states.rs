@@ -3,20 +3,20 @@ use std::collections::{HashMap, HashSet};
 use chrono::{DateTime, Duration, Utc};
 use openmls::{
     prelude::{GroupEpoch, SignaturePublicKey},
-    treesync::Node,
+    treesync::RatchetTree,
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize)]
 struct PastGroupState {
-    nodes: Vec<Option<Node>>,
+    nodes: RatchetTree,
     creation_time: DateTime<Utc>,
     potential_joiners: HashSet<SignaturePublicKey>,
 }
 
 impl PastGroupState {
     /// Create a new [`PastGroupState`] with the creation time set to now.
-    fn new(nodes: Vec<Option<Node>>, potential_joiners: &[SignaturePublicKey]) -> Self {
+    fn new(nodes: RatchetTree, potential_joiners: &[SignaturePublicKey]) -> Self {
         let mut potential_joiners_set = HashSet::with_capacity(potential_joiners.len());
         for joiner in potential_joiners {
             potential_joiners_set.insert(joiner.clone());
@@ -29,7 +29,7 @@ impl PastGroupState {
     }
 
     /// Get the nodes of this group state.
-    fn nodes(&self) -> &[Option<Node>] {
+    fn nodes(&self) -> &RatchetTree {
         &self.nodes
     }
 
@@ -59,7 +59,7 @@ impl PastGroupStates {
     pub(super) fn add_state(
         &mut self,
         epoch: GroupEpoch,
-        nodes: Vec<Option<Node>>,
+        nodes: RatchetTree,
         potential_joiners: &[SignaturePublicKey],
     ) {
         if potential_joiners.is_empty() {
@@ -76,7 +76,7 @@ impl PastGroupStates {
         &self,
         epoch: &GroupEpoch,
         joiner: &SignaturePublicKey,
-    ) -> Option<&[Option<Node>]> {
+    ) -> Option<&RatchetTree> {
         self.past_group_states
             .get(epoch)
             .and_then(|past_group_state| {

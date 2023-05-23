@@ -5,7 +5,7 @@ use openmls::{
 };
 use tls_codec::{Deserialize, Size};
 
-use super::{AssistedCommit, AssistedGroupInfo, AssistedMessage};
+use super::{AssistedCommit, AssistedGroupInfoIn, AssistedMessage};
 
 impl Size for AssistedMessage {
     fn tls_serialized_len(&self) -> usize {
@@ -52,7 +52,7 @@ impl Deserialize for AssistedMessage {
             // We are only able to process public messages
             MlsMessageInBody::PublicMessage(public_message) => {
                 if matches!(public_message.content_type(), ContentType::Commit) {
-                    let assisted_group_info = AssistedGroupInfo::tls_deserialize(bytes)?;
+                    let assisted_group_info = AssistedGroupInfoIn::tls_deserialize(bytes)?;
                     let assisted_commit = AssistedCommit {
                         commit: public_message,
                         assisted_group_info,

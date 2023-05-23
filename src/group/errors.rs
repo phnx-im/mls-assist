@@ -1,4 +1,4 @@
-use openmls::prelude::{LibraryError, ProcessMessageError};
+use openmls::prelude::ProcessMessageError;
 use thiserror::Error;
 
 #[cfg(doc)]
@@ -28,4 +28,13 @@ pub enum ProcessAssistedMessageError {
     /// [`GroupContext`] is inconsistent between [`ProcessedMessage`] and [`GroupInfo`].
     #[error("[`GroupContext`] is inconsistent between [`ProcessedMessage`] and [`GroupInfo`].")]
     InconsistentGroupContext,
+}
+
+#[derive(Error, Debug, PartialEq, Clone)]
+pub enum LibraryError {
+    /// See [`LibraryError`] for more details.
+    #[error("Error in the implementation of this Library.")]
+    LibraryError,
+    #[error(transparent)]
+    OpenMlsLibraryError(#[from] openmls::prelude::LibraryError),
 }

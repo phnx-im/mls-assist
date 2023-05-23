@@ -1,10 +1,7 @@
-use openmls::{
-    framing::PublicMessage,
-    prelude::{
-        group_info::VerifiableGroupInfo, ConfirmationTag, ContentType, Extensions, GroupContext,
-        GroupEpoch, GroupId, KeyPackageRef, LeafNodeIndex, MlsMessageIn, MlsMessageInBody,
-        ProtocolMessage, Sender, Signature, Welcome,
-    },
+use openmls::prelude::{
+    group_info::VerifiableGroupInfo, ConfirmationTag, ContentType, Extensions, GroupContext,
+    GroupEpoch, GroupId, KeyPackageRef, LeafNodeIndex, MlsMessageIn, MlsMessageInBody,
+    MlsMessageOut, ProtocolMessage, PublicMessageIn, Sender, Signature, Welcome,
 };
 use tls_codec::{Deserialize as TlsDeserializeTrait, TlsDeserialize, TlsSerialize, TlsSize};
 
@@ -41,7 +38,7 @@ impl TryInto<AssistedMessage> for &SerializedAssistedMessage {
             // We are only able to process public messages
             MlsMessageInBody::PublicMessage(public_message) => {
                 if matches!(public_message.content_type(), ContentType::Commit) {
-                    let assisted_group_info = AssistedGroupInfo::tls_deserialize(
+                    let assisted_group_info = AssistedGroupInfoIn::tls_deserialize(
                         &mut self
                             .group_info_bytes_option
                             .as_ref()
@@ -63,6 +60,9 @@ impl TryInto<AssistedMessage> for &SerializedAssistedMessage {
     }
 }
 
+/// This enum can be deserialized from either a single MLSMessage (in case of a
+/// non-commit message) or an MLSMessage concatenated with a serialized
+/// [`AssistedGroupInfo`].
 #[derive(Clone)]
 pub enum AssistedMessage {
     Commit(AssistedCommit),
@@ -116,7 +116,7 @@ impl AssistedMessage {
             // We are only able to process public messages
             MlsMessageInBody::PublicMessage(public_message) => {
                 if matches!(public_message.content_type(), ContentType::Commit) {
-                    let assisted_group_info = AssistedGroupInfo::tls_deserialize(&mut bytes)?;
+                    let assisted_group_info = AssistedGroupInfoIn::tls_deserialize(&mut bytes)?;
                     let assisted_commit = AssistedCommit {
                         commit: public_message,
                         assisted_group_info,
@@ -133,18 +133,25 @@ impl AssistedMessage {
 
 #[derive(TlsDeserialize, TlsSize, Clone)]
 pub struct AssistedCommit {
-    pub commit: PublicMessage,
-    pub assisted_group_info: AssistedGroupInfo,
+    pub commit: PublicMessageIn,
+    pub assisted_group_info: AssistedGroupInfoIn,
+}
+
+#[derive(TlsSize, Clone, TlsSerialize)]
+#[repr(u8)]
+pub enum AssistedGroupInfo {
+    Full(MlsMessageOut),
+    SignatureAndExtensions((Signature, Extensions)),
 }
 
 #[derive(TlsDeserialize, TlsSize, Clone)]
 #[repr(u8)]
-pub enum AssistedGroupInfo {
+pub enum AssistedGroupInfoIn {
     Full(MlsMessageIn),
     SignatureAndExtensions((Signature, Extensions)),
 }
 
-impl AssistedGroupInfo {
+impl AssistedGroupInfoIn {
     pub fn try_into_verifiable_group_info(
         self,
         sender_index: LeafNodeIndex,
@@ -152,14 +159,14 @@ impl AssistedGroupInfo {
         confirmation_tag: ConfirmationTag,
     ) -> Result<VerifiableGroupInfo, DeserializationError> {
         let group_info = match self {
-            AssistedGroupInfo::Full(mls_message_in) => {
+            AssistedGroupInfoIn::Full(mls_message_in) => {
                 if let MlsMessageInBody::GroupInfo(group_info) = mls_message_in.extract() {
                     group_info
                 } else {
                     return Err(DeserializationError::InvalidMessage);
                 }
             }
-            AssistedGroupInfo::SignatureAndExtensions((signature, extensions)) => {
+            AssistedGroupInfoIn::SignatureAndExtensions((signature, extensions)) => {
                 VerifiableGroupInfo::new(
                     group_context,
                     extensions,

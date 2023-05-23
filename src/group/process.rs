@@ -1,6 +1,6 @@
-use openmls::prelude::{OpenMlsCryptoProvider, Verifiable};
+use openmls::prelude::{OpenMlsCryptoProvider, ProposalOrRefType, ProtocolMessage, Verifiable};
 
-use super::*;
+use super::{errors::LibraryError, *};
 
 impl Group {
     /// Returns a [`ProcessedMessage`] for inspection.
@@ -21,15 +21,14 @@ impl Group {
             }) => {
                 // First process the message, then verify that the group info
                 // checks out.
-                let processed_message = self
-                    .public_group
-                    .process_message(self.backend(), commit.clone())?;
+                let processed_message = self.public_group.process_message(
+                    self.backend(),
+                    ProtocolMessage::PublicMessage(commit.clone()),
+                )?;
                 let sender = processed_message.sender().clone();
                 let confirmation_tag = commit
                     .confirmation_tag()
-                    .ok_or(LibraryError::custom(
-                        "No confirmation tag in commit after validation.",
-                    ))?
+                    .ok_or(LibraryError::LibraryError)?
                     .clone();
                 if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
                     processed_message.content()
@@ -50,7 +49,7 @@ impl Group {
                     ))
                 } else {
                     Err(ProcessAssistedMessageError::LibraryError(
-                        LibraryError::custom("Mismatching message type."),
+                        LibraryError::LibraryError, // Mismatching message type
                     ))
                 }
             }
@@ -65,17 +64,24 @@ impl Group {
         sender: Sender,
         staged_commit: &StagedCommit,
         confirmation_tag: ConfirmationTag,
-        assisted_group_info: AssistedGroupInfo,
+        assisted_group_info: AssistedGroupInfoIn,
     ) -> Result<GroupInfo, ProcessAssistedMessageError> {
         let sender_index = match sender {
             Sender::Member(leaf_index) => leaf_index,
-            Sender::NewMemberCommit => self.public_group.free_leaf_index_after_remove(
-                staged_commit.inline_proposals().map(|p| p.proposal()),
-            )?,
+            Sender::NewMemberCommit => self
+                .public_group
+                .free_leaf_index_after_remove(staged_commit.queued_proposals().filter_map(|p| {
+                    if matches!(p.proposal_or_ref_type(), ProposalOrRefType::Proposal) {
+                        Some(Some(p.proposal()))
+                    } else {
+                        None
+                    }
+                }))
+                .map_err(LibraryError::OpenMlsLibraryError)?,
             Sender::External(_) | Sender::NewMemberProposal => {
                 return Err(ProcessAssistedMessageError::LibraryError(
-                    LibraryError::custom("Invalid sender after validation."),
-                ))
+                    LibraryError::LibraryError, // Invalid sender after validation.
+                ));
             }
         };
         let verifiable_group_info = assisted_group_info

@@ -2,16 +2,15 @@ use chrono::Duration;
 use openmls::{
     prelude::{
         group_info::{GroupInfo, VerifiableGroupInfo},
-        ConfirmationTag, CreationFromExternalError, GroupEpoch, LeafNodeIndex, LibraryError,
-        Member, OpenMlsSignaturePublicKey, ProcessedMessage, ProcessedMessageContent,
-        ProposalStore, PublicGroup, Sender, SignaturePublicKey, StagedCommit,
+        ConfirmationTag, CreationFromExternalError, GroupEpoch, LeafNodeIndex, Member,
+        OpenMlsSignaturePublicKey, ProcessedMessage, ProcessedMessageContent, ProposalStore,
+        PublicGroup, Sender, SignaturePublicKey, StagedCommit,
     },
-    treesync::{LeafNode, Node},
+    treesync::{LeafNode, RatchetTree, RatchetTreeIn},
 };
 use openmls_rust_crypto::OpenMlsRustCrypto;
-use serde::{Deserialize, Serialize};
 
-use crate::messages::{AssistedCommit, AssistedGroupInfo, AssistedMessage};
+use crate::messages::{AssistedCommit, AssistedGroupInfoIn, AssistedMessage};
 
 use self::{errors::ProcessAssistedMessageError, past_group_states::PastGroupStates};
 
@@ -19,12 +18,12 @@ pub mod errors;
 mod past_group_states;
 pub mod process;
 
-#[derive(Serialize, Deserialize)]
+// TODO: Persistence. We can solve this as OpenMLS has a consistent persistence
+// story upstream.
 pub struct Group {
     public_group: PublicGroup,
     group_info: GroupInfo,
     past_group_states: PastGroupStates,
-    #[serde(skip)]
     backend: OpenMlsRustCrypto,
 }
 
@@ -33,13 +32,12 @@ impl Group {
     /// leaf.
     pub fn new(
         verifiable_group_info: VerifiableGroupInfo,
-        leaf_node: LeafNode,
+        leaf_node: RatchetTreeIn,
     ) -> Result<Self, CreationFromExternalError> {
         let backend = OpenMlsRustCrypto::default();
-        let nodes = vec![Some(Node::LeafNode(leaf_node.into()))];
         let (public_group, group_info) = PublicGroup::from_external(
             &backend,
-            nodes,
+            leaf_node,
             verifiable_group_info,
             ProposalStore::default(),
         )?;
@@ -69,7 +67,7 @@ impl Group {
         };
         let added_potential_joiners =
             if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
-                processed_message.content()
+                processed_message.into_content()
             {
                 // We want to add a new state for members that were added to the
                 // group via an Add proposal.
@@ -85,17 +83,17 @@ impl Group {
                     })
                     .collect();
 
+                self.public_group.merge_commit(*staged_commit);
                 added_potential_joiners
             } else {
                 vec![]
             };
-        self.public_group.finalize_processing(processed_message);
         // Check if any potential joiners were added.
         self.past_group_states.add_state(
             // Note that we're saving the group state after merging the staged
             // commit.
             self.public_group.group_context().epoch(),
-            self.public_group.export_nodes(),
+            self.public_group.export_ratchet_tree(),
             &added_potential_joiners,
         );
         // Check if any past group state has expired.
@@ -107,8 +105,8 @@ impl Group {
         &self.group_info
     }
 
-    pub fn export_ratchet_tree(&self) -> Vec<Option<Node>> {
-        self.public_group.export_nodes()
+    pub fn export_ratchet_tree(&self) -> RatchetTree {
+        self.public_group.export_ratchet_tree()
     }
 
     pub fn epoch(&self) -> GroupEpoch {
@@ -122,7 +120,7 @@ impl Group {
         &mut self,
         epoch: &GroupEpoch,
         joiner: &SignaturePublicKey,
-    ) -> Option<&[Option<Node>]> {
+    ) -> Option<&RatchetTree> {
         self.past_group_states.get_for_joiner(epoch, joiner)
     }
 
