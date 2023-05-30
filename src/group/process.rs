@@ -1,4 +1,4 @@
-use openmls::prelude::{OpenMlsCryptoProvider, ProposalOrRefType, ProtocolMessage, Verifiable};
+use openmls::prelude::{OpenMlsCryptoProvider, ProtocolMessage, Verifiable};
 
 use super::{errors::LibraryError, *};
 
@@ -40,7 +40,7 @@ impl Group {
                         assisted_group_info,
                     )?;
                     // This is really only relevant for the "Full" group info case above.
-                    if group_info.group_context() != staged_commit.staged_context() {
+                    if group_info.group_context() != staged_commit.group_context() {
                         return Err(ProcessAssistedMessageError::InconsistentGroupContext);
                     }
                     Ok(ProcessedAssistedMessage::Commit(
@@ -70,13 +70,7 @@ impl Group {
             Sender::Member(leaf_index) => leaf_index,
             Sender::NewMemberCommit => self
                 .public_group
-                .free_leaf_index_after_remove(staged_commit.queued_proposals().filter_map(|p| {
-                    if matches!(p.proposal_or_ref_type(), ProposalOrRefType::Proposal) {
-                        Some(Some(p.proposal()))
-                    } else {
-                        None
-                    }
-                }))
+                .ext_commit_sender_index(staged_commit)
                 .map_err(LibraryError::OpenMlsLibraryError)?,
             Sender::External(_) | Sender::NewMemberProposal => {
                 return Err(ProcessAssistedMessageError::LibraryError(
@@ -87,7 +81,7 @@ impl Group {
         let verifiable_group_info = assisted_group_info
             .try_into_verifiable_group_info(
                 sender_index,
-                staged_commit.staged_context().clone(),
+                staged_commit.group_context().clone(),
                 confirmation_tag,
             )
             .map_err(|_| ProcessAssistedMessageError::InvalidGroupInfoMessage)?;
