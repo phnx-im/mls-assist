@@ -3,7 +3,7 @@ use openmls::{
     prelude::{ContentType, MlsMessageIn, MlsMessageInBody, ProtocolMessage},
     versions::ProtocolVersion,
 };
-use tls_codec::{Deserialize, Serialize, Size};
+use tls_codec::{Deserialize, DeserializeBytes, Serialize, Size};
 
 use super::{AssistedCommit, AssistedGroupInfoIn, AssistedMessage, AssistedWelcome};
 
@@ -64,6 +64,20 @@ impl Deserialize for AssistedMessage {
             }
         };
         Ok(assisted_message)
+    }
+}
+
+impl DeserializeBytes for AssistedMessage {
+    fn tls_deserialize(bytes: &[u8]) -> Result<(Self, &[u8]), tls_codec::Error>
+    where
+        Self: Sized,
+    {
+        let mut bytes_reader = bytes;
+        let assisted_message = <Self as Deserialize>::tls_deserialize(&mut bytes_reader)?;
+        let remainder = bytes
+            .get(assisted_message.tls_serialized_len()..)
+            .ok_or(tls_codec::Error::EndOfStream)?;
+        Ok((assisted_message, remainder))
     }
 }
 
