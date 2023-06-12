@@ -103,6 +103,19 @@ impl Serialize for AssistedWelcome {
     }
 }
 
+impl Deserialize for AssistedWelcome {
+    fn tls_deserialize<R: std::io::Read>(bytes: &mut R) -> Result<Self, tls_codec::Error>
+    where
+        Self: Sized,
+    {
+        let mls_message = MlsMessageIn::tls_deserialize(bytes)?;
+        match mls_message.extract() {
+            MlsMessageInBody::Welcome(welcome) => Ok(AssistedWelcome { welcome }),
+            _ => Err(tls_codec::Error::InvalidInput),
+        }
+    }
+}
+
 impl DeserializeBytes for AssistedWelcome {
     fn tls_deserialize(bytes: &[u8]) -> Result<(Self, &[u8]), tls_codec::Error>
     where
