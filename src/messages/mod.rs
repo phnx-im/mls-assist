@@ -63,7 +63,7 @@ impl TryInto<AssistedMessage> for &SerializedAssistedMessage {
 /// This enum can be deserialized from either a single MLSMessage (in case of a
 /// non-commit message) or an MLSMessage concatenated with a serialized
 /// [`AssistedGroupInfo`].
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum AssistedMessage {
     Commit(AssistedCommit),
     NonCommit(ProtocolMessage),
@@ -131,20 +131,20 @@ impl AssistedMessage {
     }
 }
 
-#[derive(TlsDeserialize, TlsSize, Clone)]
+#[derive(Debug, TlsDeserialize, TlsSize, Clone)]
 pub struct AssistedCommit {
     pub commit: PublicMessageIn,
     pub assisted_group_info: AssistedGroupInfoIn,
 }
 
-#[derive(TlsSize, Clone, TlsSerialize)]
+#[derive(Debug, TlsSize, Clone, TlsSerialize)]
 #[repr(u8)]
 pub enum AssistedGroupInfo {
     Full(MlsMessageOut),
     SignatureAndExtensions((Signature, Extensions)),
 }
 
-#[derive(TlsDeserialize, TlsSize, Clone)]
+#[derive(Debug, TlsDeserialize, TlsSize, Clone)]
 #[repr(u8)]
 pub enum AssistedGroupInfoIn {
     Full(MlsMessageIn),
@@ -180,7 +180,7 @@ impl AssistedGroupInfoIn {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct AssistedWelcome {
     pub welcome: Welcome,
 }
