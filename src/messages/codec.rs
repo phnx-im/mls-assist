@@ -38,7 +38,7 @@ impl Deserialize for AssistedMessage {
         Self: Sized,
     {
         // First deserialize the main message.
-        let mls_message = MlsMessageIn::tls_deserialize(bytes)?;
+        let mls_message = <MlsMessageIn as Deserialize>::tls_deserialize(bytes)?;
         // If it's a commit, we have to check for the assisted group info.
         let assisted_message = match mls_message.extract() {
             // We don't accept Welcomes, GroupInfos or KeyPackages.
@@ -108,7 +108,7 @@ impl Deserialize for AssistedWelcome {
     where
         Self: Sized,
     {
-        let mls_message = MlsMessageIn::tls_deserialize(bytes)?;
+        let mls_message = <MlsMessageIn as Deserialize>::tls_deserialize(bytes)?;
         match mls_message.extract() {
             MlsMessageInBody::Welcome(welcome) => Ok(AssistedWelcome { welcome }),
             _ => Err(tls_codec::Error::InvalidInput),
@@ -121,11 +121,7 @@ impl DeserializeBytes for AssistedWelcome {
     where
         Self: Sized,
     {
-        let mut bytes_reader = bytes;
-        let mls_message = MlsMessageIn::tls_deserialize(&mut bytes_reader)?;
-        let remainder = bytes
-            .get(mls_message.tls_serialized_len()..)
-            .ok_or(tls_codec::Error::EndOfStream)?;
+        let (mls_message, remainder) = <MlsMessageIn as DeserializeBytes>::tls_deserialize(bytes)?;
         match mls_message.extract() {
             MlsMessageInBody::Welcome(welcome) => Ok((AssistedWelcome { welcome }, remainder)),
             _ => Err(tls_codec::Error::InvalidInput),
