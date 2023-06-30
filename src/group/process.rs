@@ -1,4 +1,6 @@
-use openmls::prelude::{MlsCredentialType, OpenMlsCryptoProvider, ProtocolMessage, Verifiable};
+use openmls::prelude::{
+    ContentType, MlsCredentialType, OpenMlsCryptoProvider, ProtocolMessage, Verifiable,
+};
 
 use super::{errors::LibraryError, *};
 
@@ -6,76 +8,112 @@ impl Group {
     /// Returns a [`ProcessedMessage`] for inspection.
     pub fn process_assisted_message(
         &self,
-        assisted_message: AssistedMessage,
-    ) -> Result<ProcessedAssistedMessage, ProcessAssistedMessageError> {
-        match assisted_message {
-            AssistedMessage::NonCommit(public_message) => {
+        assisted_message: AssistedMessageIn,
+    ) -> Result<ProcessedAssistedMessagePlus, ProcessAssistedMessageError> {
+        let (commit, assisted_group_info) = match assisted_message.mls_message {
+            ProtocolMessage::PrivateMessage(private_message) => {
+                // We can process private messages using the PublicGroup, but
+                // otherwise we can't to anything with them.
                 let processed_message = self
                     .public_group
-                    .process_message(self.backend(), public_message)?;
-                Ok(ProcessedAssistedMessage::NonCommit(processed_message))
+                    .process_message(self.backend(), private_message)?;
+                let processed_assisted_message =
+                    ProcessedAssistedMessage::NonCommit(processed_message);
+                let message_plus = ProcessedAssistedMessagePlus {
+                    processed_assisted_message,
+                    serialized_mls_message: assisted_message.serialized_mls_message,
+                };
+                return Ok(message_plus);
             }
-            AssistedMessage::Commit(AssistedCommit {
-                commit,
-                assisted_group_info,
-            }) => {
-                // First process the message, then verify that the group info
-                // checks out.
-                let processed_message = self.public_group.process_message(
-                    self.backend(),
-                    ProtocolMessage::PublicMessage(commit.clone()),
-                )?;
-                let sender = processed_message.sender().clone();
-                let confirmation_tag = commit
-                    .confirmation_tag()
-                    .ok_or(LibraryError::LibraryError)?
-                    .clone();
-                if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
-                    processed_message.content()
-                {
-                    let assisted_sender = match sender {
-                        Sender::Member(leaf_index) => AssistedSender::Member(leaf_index),
-                        Sender::NewMemberCommit => {
-                            // For now, the only way we can get hold of the signature key (before merging the commit) is to assume that it's an InfraCredential.
-                            let signature_key =
-                                match processed_message.credential().mls_credential_type() {
-                                    MlsCredentialType::Infra(infra_credential) => {
-                                        infra_credential.verifying_key().clone()
-                                    }
-                                    MlsCredentialType::Basic(_) | MlsCredentialType::X509(_) => {
-                                        // TODO: For now, this only supports InfraCredentials.
-                                        return Err(ProcessAssistedMessageError::UnknownSender);
-                                    }
-                                };
-                            AssistedSender::External(signature_key)
-                        }
-                        Sender::External(_) | Sender::NewMemberProposal => {
-                            return Err(ProcessAssistedMessageError::LibraryError(
-                                LibraryError::LibraryError, // Invalid sender after validation.
-                            ));
-                        }
-                    };
-                    let group_info: GroupInfo = self.validate_group_info(
-                        assisted_sender,
-                        staged_commit,
-                        confirmation_tag,
-                        assisted_group_info,
-                    )?;
-                    // This is really only relevant for the "Full" group info case above.
-                    if group_info.group_context() != staged_commit.group_context() {
-                        return Err(ProcessAssistedMessageError::InconsistentGroupContext);
+            ProtocolMessage::PublicMessage(pm) => {
+                match pm.content_type() {
+                    ContentType::Application => {
+                        // Public messages can't be application messages.
+                        return Err(ProcessAssistedMessageError::InvalidAssistedMessage);
                     }
-                    Ok(ProcessedAssistedMessage::Commit(
-                        processed_message,
-                        group_info,
-                    ))
-                } else {
-                    Err(ProcessAssistedMessageError::LibraryError(
-                        LibraryError::LibraryError, // Mismatching message type
-                    ))
+                    ContentType::Proposal => {
+                        // Proposals are fed to the PublicGroup s.t. they are
+                        // put into the ProposalStore. Otherwise we don't do
+                        // anything with them.
+                        let processed_message =
+                            self.public_group.process_message(self.backend(), pm)?;
+                        let processed_assisted_message =
+                            ProcessedAssistedMessage::NonCommit(processed_message);
+                        let message_plus = ProcessedAssistedMessagePlus {
+                            processed_assisted_message,
+                            serialized_mls_message: assisted_message.serialized_mls_message,
+                        };
+                        return Ok(message_plus);
+                    }
+                    ContentType::Commit => {
+                        // If it's a commit, we make sure there is a group info present.
+                        let assisted_group_info = match assisted_message.group_info_option {
+                            Some(agi) => agi,
+                            None => {
+                                return Err(ProcessAssistedMessageError::InvalidAssistedMessage)
+                            }
+                        };
+                        (pm, assisted_group_info)
+                    }
                 }
             }
+        };
+        // First process the message, then verify that the group info
+        // checks out.
+        let processed_message = self.public_group.process_message(
+            self.backend(),
+            ProtocolMessage::PublicMessage(commit.clone()),
+        )?;
+        let sender = processed_message.sender().clone();
+        let confirmation_tag = commit
+            .confirmation_tag()
+            .ok_or(LibraryError::LibraryError)?
+            .clone();
+        let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
+            processed_message.content()
+            else {
+                return Err(ProcessAssistedMessageError::LibraryError(
+                    LibraryError::LibraryError, // Mismatching message type
+                ))
+        };
+        let assisted_sender = match sender {
+            Sender::Member(leaf_index) => AssistedSender::Member(leaf_index),
+            Sender::NewMemberCommit => {
+                // For now, the only way we can get hold of the signature key (before merging the commit) is to assume that it's an InfraCredential.
+                let signature_key = match processed_message.credential().mls_credential_type() {
+                    MlsCredentialType::Infra(infra_credential) => {
+                        infra_credential.verifying_key().clone()
+                    }
+                    MlsCredentialType::Basic(_) | MlsCredentialType::X509(_) => {
+                        // TODO: For now, this only supports InfraCredentials.
+                        return Err(ProcessAssistedMessageError::UnknownSender);
+                    }
+                };
+                AssistedSender::External(signature_key)
+            }
+            Sender::External(_) | Sender::NewMemberProposal => {
+                return Err(ProcessAssistedMessageError::LibraryError(
+                    LibraryError::LibraryError, // Invalid sender after validation.
+                ));
+            }
+        };
+        let group_info: GroupInfo = self.validate_group_info(
+            assisted_sender,
+            staged_commit,
+            confirmation_tag,
+            assisted_group_info,
+        )?;
+        // This is really only relevant for the "Full" group info case above.
+        if group_info.group_context() != staged_commit.group_context() {
+            return Err(ProcessAssistedMessageError::InconsistentGroupContext);
         }
+        let processed_assisted_message =
+            ProcessedAssistedMessage::Commit(processed_message, group_info);
+        let message_plus = ProcessedAssistedMessagePlus {
+            processed_assisted_message,
+            serialized_mls_message: assisted_message.serialized_mls_message,
+        };
+        Ok(message_plus)
     }
 }
 

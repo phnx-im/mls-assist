@@ -11,7 +11,7 @@ use openmls::{
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use serde::{Deserialize, Serialize};
 
-use crate::messages::{AssistedCommit, AssistedGroupInfoIn, AssistedMessage};
+use crate::messages::{AssistedGroupInfoIn, AssistedMessageIn, SerializedMlsMessage};
 
 use self::{errors::ProcessAssistedMessageError, past_group_states::PastGroupStates};
 
@@ -132,6 +132,11 @@ impl Group {
     pub fn members(&self) -> impl Iterator<Item = Member> + '_ {
         self.public_group.members()
     }
+}
+
+pub struct ProcessedAssistedMessagePlus {
+    pub processed_assisted_message: ProcessedAssistedMessage,
+    pub serialized_mls_message: SerializedMlsMessage,
 }
 
 pub enum ProcessedAssistedMessage {

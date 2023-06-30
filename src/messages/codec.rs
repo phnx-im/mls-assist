@@ -1,105 +1,76 @@
 use openmls::{
-    framing::WireFormat,
-    prelude::{ContentType, MlsMessageIn, MlsMessageInBody, ProtocolMessage},
+    prelude::{MlsMessageIn, MlsMessageInBody, MlsMessageOut, ProtocolMessage, WireFormat},
     versions::ProtocolVersion,
 };
 use tls_codec::{Deserialize, DeserializeBytes, Serialize, Size};
 
-use super::{AssistedCommit, AssistedGroupInfoIn, AssistedMessage, AssistedWelcome};
+use super::{AssistedGroupInfoIn, AssistedMessageIn, AssistedWelcome};
 
-impl Size for AssistedMessage {
+impl Size for AssistedMessageIn {
     fn tls_serialized_len(&self) -> usize {
-        match self {
-            AssistedMessage::Commit(c) => {
-                // First the commit
-                // Any version
-                ProtocolVersion::default().tls_serialized_len()
-                    + WireFormat::PublicMessage.tls_serialized_len()
-                    + c.commit.tls_serialized_len()
-                    + c.assisted_group_info.tls_serialized_len()
-            }
-            AssistedMessage::NonCommit(nc) => {
-                // Any version
-                ProtocolVersion::default().tls_serialized_len() +
-                // Any wire format
-                WireFormat::PublicMessage.tls_serialized_len() +
-                match nc {
-                    ProtocolMessage::PrivateMessage(pm) => pm.tls_serialized_len(),
-                    ProtocolMessage::PublicMessage(pm) => pm.tls_serialized_len(),
+        ProtocolVersion::default().tls_serialized_len()
+            + match &self.mls_message {
+                ProtocolMessage::PrivateMessage(pm) => {
+                    WireFormat::PrivateMessage.tls_serialized_len() + pm.tls_serialized_len()
+                }
+                ProtocolMessage::PublicMessage(pm) => {
+                    WireFormat::PublicMessage.tls_serialized_len() + pm.tls_serialized_len()
                 }
             }
-        }
+            + self.group_info_option.tls_serialized_len()
     }
 }
 
-impl Deserialize for AssistedMessage {
-    fn tls_deserialize<R: std::io::Read>(bytes: &mut R) -> Result<Self, tls_codec::Error>
-    where
-        Self: Sized,
-    {
-        // First deserialize the main message.
-        let mls_message = <MlsMessageIn as Deserialize>::tls_deserialize(bytes)?;
-        // If it's a commit, we have to check for the assisted group info.
-        let assisted_message = match mls_message.extract() {
-            // We don't accept Welcomes, GroupInfos or KeyPackages.
-            MlsMessageInBody::Welcome(_)
-            | MlsMessageInBody::GroupInfo(_)
-            | MlsMessageInBody::KeyPackage(_) => return Err(tls_codec::Error::InvalidInput),
-            // Private messages are Okay, but we can't really do anything with them.
-            MlsMessageInBody::PrivateMessage(private_message) => {
-                AssistedMessage::NonCommit(private_message.into())
-            }
-            // We are only able to process public messages
-            MlsMessageInBody::PublicMessage(public_message) => {
-                if matches!(public_message.content_type(), ContentType::Commit) {
-                    let assisted_group_info = AssistedGroupInfoIn::tls_deserialize(bytes)?;
-                    let assisted_commit = AssistedCommit {
-                        commit: public_message,
-                        assisted_group_info,
-                    };
-                    AssistedMessage::Commit(assisted_commit)
-                } else {
-                    AssistedMessage::NonCommit(public_message.into())
-                }
-            }
-        };
-        Ok(assisted_message)
-    }
-}
-
-impl DeserializeBytes for AssistedMessage {
+impl DeserializeBytes for AssistedMessageIn {
     fn tls_deserialize(bytes: &[u8]) -> Result<(Self, &[u8]), tls_codec::Error>
     where
         Self: Sized,
     {
-        let mut bytes_reader = bytes;
-        let assisted_message = <Self as Deserialize>::tls_deserialize(&mut bytes_reader)?;
-        let remainder = bytes
-            .get(assisted_message.tls_serialized_len()..)
+        let (mls_message, remainder) = <MlsMessageIn as DeserializeBytes>::tls_deserialize(bytes)?;
+        let mut remainder_reader = remainder;
+        let group_info_option =
+            Option::<AssistedGroupInfoIn>::tls_deserialize(&mut remainder_reader)?;
+        let serialized_mls_message = bytes
+            .get(..bytes.len() - remainder.len())
+            .ok_or(tls_codec::Error::EndOfStream)?
+            .to_vec();
+        let remainder = remainder
+            .get(group_info_option.tls_serialized_len()..)
             .ok_or(tls_codec::Error::EndOfStream)?;
+        let mls_message = match mls_message.extract() {
+            MlsMessageInBody::PublicMessage(pm) => pm.into(),
+            MlsMessageInBody::PrivateMessage(pm) => pm.into(),
+            MlsMessageInBody::Welcome(_)
+            | MlsMessageInBody::GroupInfo(_)
+            | MlsMessageInBody::KeyPackage(_) => return Err(tls_codec::Error::InvalidInput),
+        };
+
+        let assisted_message = Self {
+            mls_message,
+            serialized_mls_message: super::SerializedMlsMessage(serialized_mls_message),
+            group_info_option,
+        };
         Ok((assisted_message, remainder))
     }
 }
 
 impl Size for AssistedWelcome {
     fn tls_serialized_len(&self) -> usize {
-        // Any version
-        ProtocolVersion::default().tls_serialized_len() +
-        // Any wire format
-        WireFormat::PublicMessage.tls_serialized_len() +
-        // The welcome
-        self.welcome.tls_serialized_len()
+        MlsMessageOut::from_welcome(self.welcome.clone(), ProtocolVersion::default())
+            .tls_serialized_len()
+        //// Any version
+        //ProtocolVersion::default().tls_serialized_len() +
+        //// Any wire format
+        //WireFormat::PublicMessage.tls_serialized_len() +
+        //// The welcome
+        //self.welcome.tls_serialized_len()
     }
 }
 
 impl Serialize for AssistedWelcome {
     fn tls_serialize<W: std::io::Write>(&self, writer: &mut W) -> Result<usize, tls_codec::Error> {
-        // Default version
-        let mut written = ProtocolVersion::default().tls_serialize(writer)?;
-        // Any wire format
-        written += WireFormat::Welcome.tls_serialize(writer)?;
-        // The welcome
-        self.welcome.tls_serialize(writer).map(|l| written + l)
+        MlsMessageOut::from_welcome(self.welcome.clone(), ProtocolVersion::default())
+            .tls_serialize(writer)
     }
 }
 
@@ -124,7 +95,7 @@ impl DeserializeBytes for AssistedWelcome {
         let (mls_message, remainder) = <MlsMessageIn as DeserializeBytes>::tls_deserialize(bytes)?;
         match mls_message.extract() {
             MlsMessageInBody::Welcome(welcome) => Ok((AssistedWelcome { welcome }, remainder)),
-            _ => Err(tls_codec::Error::InvalidInput),
+            _ => Err(tls_codec::Error::EndOfStream),
         }
     }
 }

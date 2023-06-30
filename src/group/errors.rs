@@ -7,6 +7,9 @@ use openmls::prelude::{group_info::GroupInfo, GroupContext, ProcessedMessage};
 /// Process message error
 #[derive(Error, Debug, PartialEq, Clone)]
 pub enum ProcessAssistedMessageError {
+    /// Invalid assisted message.
+    #[error("Invalid assisted message.")]
+    InvalidAssistedMessage,
     /// See [`LibraryError`] for more details.
     #[error(transparent)]
     LibraryError(#[from] LibraryError),
@@ -16,9 +19,6 @@ pub enum ProcessAssistedMessageError {
     /// Invalid group info message.
     #[error("Invalid group info message.")]
     InvalidGroupInfoMessage,
-    /// The message's wire format is incompatible with the group's wire format policy.
-    #[error("The message's wire format is incompatible with the group's wire format policy.")]
-    IncompatibleWireFormat,
     /// See [`ProcessMessageError`] for more details.
     #[error(transparent)]
     ProcessMessageError(#[from] ProcessMessageError),
