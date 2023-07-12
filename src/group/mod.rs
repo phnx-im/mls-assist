@@ -66,10 +66,8 @@ impl Group {
                 processed_message
             }
         };
-        let added_potential_joiners =
-            if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
-                processed_message.into_content()
-            {
+        let added_potential_joiners = match processed_message.into_content() {
+            ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
                 // We want to add a new state for members that were added to the
                 // group via an Add proposal.
                 let added_potential_joiners = staged_commit
@@ -86,9 +84,14 @@ impl Group {
 
                 self.public_group.merge_commit(*staged_commit);
                 added_potential_joiners
-            } else {
+            }
+            ProcessedMessageContent::ProposalMessage(proposal) => {
+                self.public_group.add_proposal(*proposal);
                 vec![]
-            };
+            }
+            ProcessedMessageContent::ApplicationMessage(_)
+            | ProcessedMessageContent::ExternalJoinProposalMessage(_) => todo!(),
+        };
         // Check if any potential joiners were added.
         self.past_group_states.add_state(
             // Note that we're saving the group state after merging the staged
