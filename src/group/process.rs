@@ -1,6 +1,4 @@
-use openmls::prelude::{
-    ContentType, MlsCredentialType, OpenMlsCryptoProvider, ProtocolMessage, Verifiable,
-};
+use openmls::prelude::{ContentType, MlsCredentialType, ProtocolMessage, Verifiable};
 
 use super::{errors::LibraryError, *};
 
@@ -16,7 +14,7 @@ impl Group {
                 // otherwise we can't to anything with them.
                 let processed_message = self
                     .public_group
-                    .process_message(self.backend(), private_message)?;
+                    .process_message(self.backend().crypto(), private_message)?;
                 let processed_assisted_message =
                     ProcessedAssistedMessage::NonCommit(processed_message);
                 let message_plus = ProcessedAssistedMessagePlus {
@@ -35,8 +33,9 @@ impl Group {
                         // Proposals are fed to the PublicGroup s.t. they are
                         // put into the ProposalStore. Otherwise we don't do
                         // anything with them.
-                        let processed_message =
-                            self.public_group.process_message(self.backend(), pm)?;
+                        let processed_message = self
+                            .public_group
+                            .process_message(self.backend().crypto(), pm)?;
                         let processed_assisted_message =
                             ProcessedAssistedMessage::NonCommit(processed_message);
                         let message_plus = ProcessedAssistedMessagePlus {
@@ -61,7 +60,7 @@ impl Group {
         // First process the message, then verify that the group info
         // checks out.
         let processed_message = self.public_group.process_message(
-            self.backend(),
+            self.backend().crypto(),
             ProtocolMessage::PublicMessage(commit.clone()),
         )?;
         let sender = processed_message.sender().clone();

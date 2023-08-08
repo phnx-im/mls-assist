@@ -9,6 +9,7 @@ use openmls::{
     treesync::{LeafNode, RatchetTree, RatchetTreeIn},
 };
 use openmls_rust_crypto::OpenMlsRustCrypto;
+use openmls_traits::OpenMlsProvider;
 use serde::{Deserialize, Serialize};
 
 use crate::messages::{AssistedGroupInfoIn, AssistedMessageIn, SerializedMlsMessage};
@@ -37,7 +38,7 @@ impl Group {
     ) -> Result<Self, CreationFromExternalError> {
         let backend = OpenMlsRustCrypto::default();
         let (public_group, group_info) = PublicGroup::from_external(
-            &backend,
+            backend.crypto(),
             leaf_node,
             verifiable_group_info,
             ProposalStore::default(),
