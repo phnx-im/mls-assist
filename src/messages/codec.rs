@@ -22,11 +22,12 @@ impl Size for AssistedMessageIn {
 }
 
 impl DeserializeBytes for AssistedMessageIn {
-    fn tls_deserialize(bytes: &[u8]) -> Result<(Self, &[u8]), tls_codec::Error>
+    fn tls_deserialize_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), tls_codec::Error>
     where
         Self: Sized,
     {
-        let (mls_message, remainder) = <MlsMessageIn as DeserializeBytes>::tls_deserialize(bytes)?;
+        let (mls_message, remainder) =
+            <MlsMessageIn as DeserializeBytes>::tls_deserialize_bytes(bytes)?;
         let mut remainder_reader = remainder;
         let group_info_option =
             Option::<AssistedGroupInfoIn>::tls_deserialize(&mut remainder_reader)?;
@@ -88,11 +89,12 @@ impl Deserialize for AssistedWelcome {
 }
 
 impl DeserializeBytes for AssistedWelcome {
-    fn tls_deserialize(bytes: &[u8]) -> Result<(Self, &[u8]), tls_codec::Error>
+    fn tls_deserialize_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), tls_codec::Error>
     where
         Self: Sized,
     {
-        let (mls_message, remainder) = <MlsMessageIn as DeserializeBytes>::tls_deserialize(bytes)?;
+        let (mls_message, remainder) =
+            <MlsMessageIn as DeserializeBytes>::tls_deserialize_bytes(bytes)?;
         match mls_message.extract() {
             MlsMessageInBody::Welcome(welcome) => Ok((AssistedWelcome { welcome }, remainder)),
             _ => Err(tls_codec::Error::EndOfStream),
