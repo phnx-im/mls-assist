@@ -1,6 +1,6 @@
 use openmls::prelude::{
     group_info::VerifiableGroupInfo, ConfirmationTag, Extensions, GroupContext, GroupId,
-    KeyPackageRef, LeafNodeIndex, MlsMessageIn, MlsMessageInBody, MlsMessageOut, ProtocolMessage,
+    KeyPackageRef, LeafNodeIndex, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, ProtocolMessage,
     Sender, Signature, Welcome,
 };
 use tls_codec::{TlsDeserialize, TlsSerialize, TlsSize};
@@ -68,7 +68,7 @@ impl AssistedGroupInfoIn {
     ) -> Result<VerifiableGroupInfo, DeserializationError> {
         let group_info = match self {
             AssistedGroupInfoIn::Full(mls_message_in) => {
-                if let MlsMessageInBody::GroupInfo(group_info) = mls_message_in.extract() {
+                if let MlsMessageBodyIn::GroupInfo(group_info) = mls_message_in.extract() {
                     group_info
                 } else {
                     return Err(DeserializationError::InvalidMessage);

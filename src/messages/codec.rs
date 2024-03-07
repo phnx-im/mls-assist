@@ -1,5 +1,5 @@
 use openmls::{
-    prelude::{MlsMessageIn, MlsMessageInBody, MlsMessageOut, ProtocolMessage, WireFormat},
+    prelude::{MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, ProtocolMessage, WireFormat},
     versions::ProtocolVersion,
 };
 use tls_codec::{Deserialize, DeserializeBytes, Serialize, Size};
@@ -39,11 +39,11 @@ impl DeserializeBytes for AssistedMessageIn {
             .get(group_info_option.tls_serialized_len()..)
             .ok_or(tls_codec::Error::EndOfStream)?;
         let mls_message = match mls_message.extract() {
-            MlsMessageInBody::PublicMessage(pm) => pm.into(),
-            MlsMessageInBody::PrivateMessage(pm) => pm.into(),
-            MlsMessageInBody::Welcome(_)
-            | MlsMessageInBody::GroupInfo(_)
-            | MlsMessageInBody::KeyPackage(_) => return Err(tls_codec::Error::InvalidInput),
+            MlsMessageBodyIn::PublicMessage(pm) => pm.into(),
+            MlsMessageBodyIn::PrivateMessage(pm) => pm.into(),
+            MlsMessageBodyIn::Welcome(_)
+            | MlsMessageBodyIn::GroupInfo(_)
+            | MlsMessageBodyIn::KeyPackage(_) => return Err(tls_codec::Error::InvalidInput),
         };
 
         let assisted_message = Self {
@@ -82,7 +82,7 @@ impl Deserialize for AssistedWelcome {
     {
         let mls_message = <MlsMessageIn as Deserialize>::tls_deserialize(bytes)?;
         match mls_message.extract() {
-            MlsMessageInBody::Welcome(welcome) => Ok(AssistedWelcome { welcome }),
+            MlsMessageBodyIn::Welcome(welcome) => Ok(AssistedWelcome { welcome }),
             _ => Err(tls_codec::Error::InvalidInput),
         }
     }
@@ -96,7 +96,7 @@ impl DeserializeBytes for AssistedWelcome {
         let (mls_message, remainder) =
             <MlsMessageIn as DeserializeBytes>::tls_deserialize_bytes(bytes)?;
         match mls_message.extract() {
-            MlsMessageInBody::Welcome(welcome) => Ok((AssistedWelcome { welcome }, remainder)),
+            MlsMessageBodyIn::Welcome(welcome) => Ok((AssistedWelcome { welcome }, remainder)),
             _ => Err(tls_codec::Error::EndOfStream),
         }
     }

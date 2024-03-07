@@ -10,7 +10,11 @@ derive = "1.0.0"
 features = "0.10.0"
 openmls_traits = { git = "https://github.com/openmls/openmls.git", branch = "konrad/pgi_2" }
 serde = { version = "1.0.147", features = ["derive"] }
-tls_codec = { version = "0.4.0", features = ["derive", "serde", "mls"] }
+tls_codec = { version = "0.4.2-pre.1", features = [
+    "derive",
+    "serde",
+    "mls",
+], git = "https://github.com/rustcrypto/formats" }
 openmls = { git = "https://github.com/openmls/openmls.git", branch = "konrad/pgi_2" }
 openmls_rust_crypto = { git = "https://github.com/openmls/openmls.git", branch = "konrad/pgi_2" }
 thiserror = "^1.0"

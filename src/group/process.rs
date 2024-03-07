@@ -1,4 +1,4 @@
-use openmls::prelude::{ContentType, MlsCredentialType, ProtocolMessage, Verifiable};
+use openmls::prelude::{ContentType, ProtocolMessage, Verifiable};
 
 use super::{errors::LibraryError, *};
 
@@ -70,24 +70,25 @@ impl Group {
             .clone();
         let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
             processed_message.content()
-            else {
-                return Err(ProcessAssistedMessageError::LibraryError(
-                    LibraryError::LibraryError, // Mismatching message type
-                ))
+        else {
+            return Err(ProcessAssistedMessageError::LibraryError(
+                LibraryError::LibraryError, // Mismatching message type
+            ));
         };
         let assisted_sender = match sender {
             Sender::Member(leaf_index) => AssistedSender::Member(leaf_index),
             Sender::NewMemberCommit => {
-                // For now, the only way we can get hold of the signature key (before merging the commit) is to assume that it's an InfraCredential.
-                let signature_key = match processed_message.credential().mls_credential_type() {
-                    MlsCredentialType::Infra(infra_credential) => {
-                        infra_credential.verifying_key().clone()
-                    }
-                    MlsCredentialType::Basic(_) | MlsCredentialType::X509(_) => {
-                        // TODO: For now, this only supports InfraCredentials.
-                        return Err(ProcessAssistedMessageError::UnknownSender);
-                    }
+                // If it's a new member commit, we can figure out the signature
+                // key of the sender by looking at the add proposal.
+                let Some(external_add) = staged_commit.add_proposals().next() else {
+                    return Err(ProcessAssistedMessageError::UnknownSender);
                 };
+                let signature_key = external_add
+                    .add_proposal()
+                    .key_package()
+                    .leaf_node()
+                    .signature_key()
+                    .clone();
                 AssistedSender::External(signature_key)
             }
             Sender::External(_) | Sender::NewMemberProposal => {
