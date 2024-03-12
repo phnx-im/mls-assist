@@ -165,13 +165,11 @@ impl Group {
                 (index, openmls_signature_key)
             }
         };
-        let verifiable_group_info = assisted_group_info
-            .try_into_verifiable_group_info(
-                sender_index,
-                staged_commit.group_context().clone(),
-                confirmation_tag,
-            )
-            .map_err(|_| ProcessAssistedMessageError::InvalidGroupInfoMessage)?;
+        let verifiable_group_info = assisted_group_info.into_verifiable_group_info(
+            sender_index,
+            staged_commit.group_context().clone(),
+            confirmation_tag,
+        );
 
         verifiable_group_info
             .verify(self.backend().crypto(), &sender_pk)

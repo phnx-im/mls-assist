@@ -1,21 +1,67 @@
-use openmls::prelude::{
-    group_info::VerifiableGroupInfo, ConfirmationTag, Extensions, GroupContext, GroupId,
-    KeyPackageRef, LeafNodeIndex, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, ProtocolMessage,
-    Sender, Signature, Welcome,
+use openmls::{
+    framing::{ContentType, MlsMessageBodyOut},
+    prelude::{
+        group_info::VerifiableGroupInfo, ConfirmationTag, Extensions, GroupContext, GroupId,
+        KeyPackageRef, LeafNodeIndex, MlsMessageOut, ProtocolMessage, Sender, Signature, Welcome,
+    },
 };
+use thiserror::Error;
 use tls_codec::{TlsDeserialize, TlsSerialize, TlsSize};
+
+#[cfg(doc)]
+use openmls::prelude::{PrivateMessage, PublicMessage};
 
 pub mod codec;
 
-pub enum DeserializationError {
+#[derive(Debug, Error)]
+pub enum AssistedMessageError {
+    #[error("Invalid MLSMessage body.")]
     InvalidMessage,
+    #[error("Missing group info.")]
     MissingGroupInfo,
 }
 
 #[derive(Debug, TlsSerialize, TlsSize)]
 pub struct AssistedMessageOut {
-    pub mls_message: MlsMessageOut,
-    pub group_info_option: Option<AssistedGroupInfo>,
+    mls_message: MlsMessageOut,
+    assisted_group_info_option: Option<AssistedGroupInfo>,
+}
+
+impl AssistedMessageOut {
+    /// Create a new [`AssistedMessageOut`] from an [`MlsMessageOut`] containing
+    /// either a [`PublicMessage`] or a [`PrivateMessage`] and optionally an
+    /// [`MlsMessageOut`] containing a [`GroupInfo`].
+    ///
+    /// Returns an error if the message is a commit and no [`GroupInfo`] is provided.
+    pub fn new(
+        mls_message: MlsMessageOut,
+        group_info_option: Option<MlsMessageOut>,
+    ) -> Result<Self, AssistedMessageError> {
+        let assisted_group_info_option =
+            if let MlsMessageBodyOut::PublicMessage(pub_msg) = mls_message.body() {
+                if let Some(MlsMessageBodyOut::GroupInfo(group_info)) =
+                    group_info_option.as_ref().map(|m| m.body())
+                {
+                    Some(AssistedGroupInfo {
+                        extensions: group_info.group_context().extensions().clone(),
+                        signature: group_info.signature().clone(),
+                    })
+                } else {
+                    // If the message is a commit, we require a GroupInfo to be present.
+                    if pub_msg.content_type() == ContentType::Commit {
+                        return Err(AssistedMessageError::MissingGroupInfo);
+                    } else {
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+        Ok(Self {
+            mls_message,
+            assisted_group_info_option,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -46,45 +92,31 @@ impl AssistedMessageIn {
 }
 
 #[derive(Debug, TlsSize, Clone, TlsSerialize)]
-#[repr(u8)]
-pub enum AssistedGroupInfo {
-    Full(MlsMessageOut),
-    SignatureAndExtensions((Signature, Extensions)),
+pub struct AssistedGroupInfo {
+    extensions: Extensions,
+    signature: Signature,
 }
 
 #[derive(Debug, TlsDeserialize, TlsSize, Clone)]
-#[repr(u8)]
-pub enum AssistedGroupInfoIn {
-    Full(MlsMessageIn),
-    SignatureAndExtensions((Signature, Extensions)),
+pub struct AssistedGroupInfoIn {
+    extensions: Extensions,
+    signature: Signature,
 }
 
 impl AssistedGroupInfoIn {
-    pub fn try_into_verifiable_group_info(
+    pub fn into_verifiable_group_info(
         self,
         sender_index: LeafNodeIndex,
         group_context: GroupContext,
         confirmation_tag: ConfirmationTag,
-    ) -> Result<VerifiableGroupInfo, DeserializationError> {
-        let group_info = match self {
-            AssistedGroupInfoIn::Full(mls_message_in) => {
-                if let MlsMessageBodyIn::GroupInfo(group_info) = mls_message_in.extract() {
-                    group_info
-                } else {
-                    return Err(DeserializationError::InvalidMessage);
-                }
-            }
-            AssistedGroupInfoIn::SignatureAndExtensions((signature, extensions)) => {
-                VerifiableGroupInfo::new(
-                    group_context,
-                    extensions,
-                    confirmation_tag,
-                    sender_index,
-                    signature,
-                )
-            }
-        };
-        Ok(group_info)
+    ) -> VerifiableGroupInfo {
+        VerifiableGroupInfo::new(
+            group_context,
+            self.extensions,
+            confirmation_tag,
+            sender_index,
+            self.signature,
+        )
     }
 }
 
