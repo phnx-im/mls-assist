@@ -43,7 +43,7 @@ impl AssistedMessageOut {
                     group_info_option.as_ref().map(|m| m.body())
                 {
                     Some(AssistedGroupInfo {
-                        extensions: group_info.group_context().extensions().clone(),
+                        extensions: group_info.extensions().clone(),
                         signature: group_info.signature().clone(),
                     })
                 } else {
