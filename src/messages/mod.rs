@@ -1,3 +1,4 @@
+use openmls::prelude::tls_codec::{self, TlsDeserialize, TlsSerialize, TlsSize};
 use openmls::{
     framing::{ContentType, MlsMessageBodyOut},
     prelude::{
@@ -6,7 +7,6 @@ use openmls::{
     },
 };
 use thiserror::Error;
-use tls_codec::{TlsDeserialize, TlsSerialize, TlsSize};
 
 #[cfg(doc)]
 use openmls::prelude::{PrivateMessage, PublicMessage};

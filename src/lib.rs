@@ -1,4 +1,5 @@
 pub use openmls;
+pub use openmls::prelude::tls_codec::{self, *};
 pub use openmls_rust_crypto;
 pub use openmls_traits;
 

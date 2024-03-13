@@ -1,8 +1,8 @@
+use crate::tls_codec::{Deserialize, DeserializeBytes, Error as TlsCodecError, Serialize, Size};
 use openmls::{
     prelude::{MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, ProtocolMessage, WireFormat},
     versions::ProtocolVersion,
 };
-use tls_codec::{Deserialize, DeserializeBytes, Serialize, Size};
 
 use super::{AssistedGroupInfoIn, AssistedMessageIn, AssistedWelcome};
 
@@ -22,7 +22,7 @@ impl Size for AssistedMessageIn {
 }
 
 impl DeserializeBytes for AssistedMessageIn {
-    fn tls_deserialize_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), tls_codec::Error>
+    fn tls_deserialize_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), TlsCodecError>
     where
         Self: Sized,
     {
@@ -33,17 +33,17 @@ impl DeserializeBytes for AssistedMessageIn {
             Option::<AssistedGroupInfoIn>::tls_deserialize(&mut remainder_reader)?;
         let serialized_mls_message = bytes
             .get(..bytes.len() - remainder.len())
-            .ok_or(tls_codec::Error::EndOfStream)?
+            .ok_or(TlsCodecError::EndOfStream)?
             .to_vec();
         let remainder = remainder
             .get(group_info_option.tls_serialized_len()..)
-            .ok_or(tls_codec::Error::EndOfStream)?;
+            .ok_or(TlsCodecError::EndOfStream)?;
         let mls_message = match mls_message.extract() {
             MlsMessageBodyIn::PublicMessage(pm) => pm.into(),
             MlsMessageBodyIn::PrivateMessage(pm) => pm.into(),
             MlsMessageBodyIn::Welcome(_)
             | MlsMessageBodyIn::GroupInfo(_)
-            | MlsMessageBodyIn::KeyPackage(_) => return Err(tls_codec::Error::InvalidInput),
+            | MlsMessageBodyIn::KeyPackage(_) => return Err(TlsCodecError::InvalidInput),
         };
 
         let assisted_message = Self {
@@ -69,27 +69,27 @@ impl Size for AssistedWelcome {
 }
 
 impl Serialize for AssistedWelcome {
-    fn tls_serialize<W: std::io::Write>(&self, writer: &mut W) -> Result<usize, tls_codec::Error> {
+    fn tls_serialize<W: std::io::Write>(&self, writer: &mut W) -> Result<usize, TlsCodecError> {
         MlsMessageOut::from_welcome(self.welcome.clone(), ProtocolVersion::default())
             .tls_serialize(writer)
     }
 }
 
 impl Deserialize for AssistedWelcome {
-    fn tls_deserialize<R: std::io::Read>(bytes: &mut R) -> Result<Self, tls_codec::Error>
+    fn tls_deserialize<R: std::io::Read>(bytes: &mut R) -> Result<Self, TlsCodecError>
     where
         Self: Sized,
     {
         let mls_message = <MlsMessageIn as Deserialize>::tls_deserialize(bytes)?;
         match mls_message.extract() {
             MlsMessageBodyIn::Welcome(welcome) => Ok(AssistedWelcome { welcome }),
-            _ => Err(tls_codec::Error::InvalidInput),
+            _ => Err(TlsCodecError::InvalidInput),
         }
     }
 }
 
 impl DeserializeBytes for AssistedWelcome {
-    fn tls_deserialize_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), tls_codec::Error>
+    fn tls_deserialize_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), TlsCodecError>
     where
         Self: Sized,
     {
@@ -97,7 +97,7 @@ impl DeserializeBytes for AssistedWelcome {
             <MlsMessageIn as DeserializeBytes>::tls_deserialize_bytes(bytes)?;
         match mls_message.extract() {
             MlsMessageBodyIn::Welcome(welcome) => Ok((AssistedWelcome { welcome }, remainder)),
-            _ => Err(tls_codec::Error::EndOfStream),
+            _ => Err(TlsCodecError::EndOfStream),
         }
     }
 }
