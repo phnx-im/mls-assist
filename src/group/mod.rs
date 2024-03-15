@@ -1,5 +1,6 @@
 use chrono::Duration;
 use openmls::{
+    framing::PrivateMessageIn,
     prelude::{
         group_info::{GroupInfo, VerifiableGroupInfo},
         ConfirmationTag, CreationFromExternalError, GroupEpoch, LeafNodeIndex, Member,
@@ -66,6 +67,7 @@ impl Group {
                 self.group_info = group_info;
                 processed_message
             }
+            ProcessedAssistedMessage::PrivateMessage(_) => return,
         };
         let added_potential_joiners = match processed_message.into_content() {
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
@@ -144,16 +146,18 @@ pub struct ProcessedAssistedMessagePlus {
 }
 
 pub enum ProcessedAssistedMessage {
+    PrivateMessage(PrivateMessageIn),
     NonCommit(ProcessedMessage),
     Commit(ProcessedMessage, GroupInfo),
 }
 
 impl ProcessedAssistedMessage {
-    pub fn sender(&self) -> &Sender {
+    pub fn sender(&self) -> Option<&Sender> {
         match self {
             ProcessedAssistedMessage::NonCommit(pm) | ProcessedAssistedMessage::Commit(pm, _) => {
-                pm.sender()
+                Some(pm.sender())
             }
+            ProcessedAssistedMessage::PrivateMessage(_) => None,
         }
     }
 }

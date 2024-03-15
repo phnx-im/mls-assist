@@ -10,13 +10,10 @@ impl Group {
     ) -> Result<ProcessedAssistedMessagePlus, ProcessAssistedMessageError> {
         let (commit, assisted_group_info) = match assisted_message.mls_message {
             ProtocolMessage::PrivateMessage(private_message) => {
-                // We can process private messages using the PublicGroup, but
-                // otherwise we can't to anything with them.
-                let processed_message = self
-                    .public_group
-                    .process_message(self.backend().crypto(), private_message)?;
+                // We can't process private messages using the PublicGroup, so
+                // we just forward them.
                 let processed_assisted_message =
-                    ProcessedAssistedMessage::NonCommit(processed_message);
+                    ProcessedAssistedMessage::PrivateMessage(private_message);
                 let message_plus = ProcessedAssistedMessagePlus {
                     processed_assisted_message,
                     serialized_mls_message: assisted_message.serialized_mls_message,
