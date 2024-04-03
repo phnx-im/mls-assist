@@ -77,15 +77,10 @@ impl Group {
             Sender::NewMemberCommit => {
                 // If it's a new member commit, we can figure out the signature
                 // key of the sender by looking at the add proposal.
-                let Some(external_add) = staged_commit.add_proposals().next() else {
+                let Some(external_add) = staged_commit.update_path_leaf_node() else {
                     return Err(ProcessAssistedMessageError::UnknownSender);
                 };
-                let signature_key = external_add
-                    .add_proposal()
-                    .key_package()
-                    .leaf_node()
-                    .signature_key()
-                    .clone();
+                let signature_key = external_add.signature_key().clone();
                 AssistedSender::External(signature_key)
             }
             Sender::External(_) | Sender::NewMemberProposal => {
