@@ -8,24 +8,9 @@ edition = "2021"
 [dependencies]
 derive = "1.0.0"
 features = "0.10.0"
-openmls_traits = { git = "https://github.com/openmls/openmls.git", branch = "konrad/public_group_interface" }
+openmls_traits = { git = "https://github.com/openmls/openmls.git" }
 serde = { version = "1.0.147", features = ["derive"] }
-tls_codec = { version = "0.2.0", features = ["derive", "serde", "mls"] }
-openmls = { git = "https://github.com/openmls/openmls.git", branch = "konrad/public_group_interface" }
-openmls_rust_crypto = { git = "https://github.com/openmls/openmls.git", branch = "konrad/public_group_interface" }
+openmls = { git = "https://github.com/openmls/openmls.git" }
+openmls_rust_crypto = { git = "https://github.com/openmls/openmls.git" }
 thiserror = "^1.0"
-chrono = {version = "0.4.19", features = ["serde"]}
-
-
-# Patching unreleased crates
-[patch.crates-io.tls_codec]
-git = "https://github.com/RustCrypto/formats.git"
-
-[patch.crates-io.hpke-rs]
-git = "https://github.com/franziskuskiefer/hpke-rs.git"
-
-[patch.crates-io.hpke-rs-crypto]
-git = "https://github.com/franziskuskiefer/hpke-rs.git"
-
-[patch.crates-io.hpke-rs-rust-crypto]
-git = "https://github.com/franziskuskiefer/hpke-rs.git"
+chrono = { version = "0.4.19", features = ["serde"] }

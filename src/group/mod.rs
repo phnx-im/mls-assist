@@ -1,17 +1,19 @@
 use chrono::Duration;
 use openmls::{
+    framing::PrivateMessageIn,
     prelude::{
         group_info::{GroupInfo, VerifiableGroupInfo},
-        ConfirmationTag, CreationFromExternalError, GroupEpoch, LeafNodeIndex, LibraryError,
+        ConfirmationTag, CreationFromExternalError, GroupEpoch, LeafNodeIndex, Member,
         OpenMlsSignaturePublicKey, ProcessedMessage, ProcessedMessageContent, ProposalStore,
-        PublicGroup, Sender, SignaturePublicKey, StagedCommit, Verifiable,
+        PublicGroup, Sender, SignaturePublicKey, StagedCommit,
     },
-    treesync::{LeafNode, Node},
+    treesync::{LeafNode, RatchetTree, RatchetTreeIn},
 };
 use openmls_rust_crypto::OpenMlsRustCrypto;
+use openmls_traits::OpenMlsProvider;
 use serde::{Deserialize, Serialize};
 
-use crate::messages::{AssistedCommit, AssistedGroupInfo, AssistedMessage};
+use crate::messages::{AssistedGroupInfoIn, AssistedMessageIn, SerializedMlsMessage};
 
 use self::{errors::ProcessAssistedMessageError, past_group_states::PastGroupStates};
 
@@ -33,13 +35,12 @@ impl Group {
     /// leaf.
     pub fn new(
         verifiable_group_info: VerifiableGroupInfo,
-        leaf_node: LeafNode,
+        leaf_node: RatchetTreeIn,
     ) -> Result<Self, CreationFromExternalError> {
         let backend = OpenMlsRustCrypto::default();
-        let nodes = vec![Some(Node::LeafNode(leaf_node.into()))];
         let (public_group, group_info) = PublicGroup::from_external(
-            &backend,
-            nodes,
+            backend.crypto(),
+            leaf_node,
             verifiable_group_info,
             ProposalStore::default(),
         )?;
@@ -66,11 +67,10 @@ impl Group {
                 self.group_info = group_info;
                 processed_message
             }
+            ProcessedAssistedMessage::PrivateMessage(_) => return,
         };
-        let added_potential_joiners =
-            if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
-                processed_message.content()
-            {
+        let added_potential_joiners = match processed_message.into_content() {
+            ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
                 // We want to add a new state for members that were added to the
                 // group via an Add proposal.
                 let added_potential_joiners = staged_commit
@@ -85,17 +85,22 @@ impl Group {
                     })
                     .collect();
 
+                self.public_group.merge_commit(*staged_commit);
                 added_potential_joiners
-            } else {
+            }
+            ProcessedMessageContent::ProposalMessage(proposal) => {
+                self.public_group.add_proposal(*proposal);
                 vec![]
-            };
-        self.public_group.finalize_processing(processed_message);
+            }
+            ProcessedMessageContent::ApplicationMessage(_)
+            | ProcessedMessageContent::ExternalJoinProposalMessage(_) => todo!(),
+        };
         // Check if any potential joiners were added.
         self.past_group_states.add_state(
             // Note that we're saving the group state after merging the staged
             // commit.
             self.public_group.group_context().epoch(),
-            self.public_group.export_nodes(),
+            self.public_group.export_ratchet_tree(),
             &added_potential_joiners,
         );
         // Check if any past group state has expired.
@@ -105,6 +110,10 @@ impl Group {
 
     pub fn group_info(&self) -> &GroupInfo {
         &self.group_info
+    }
+
+    pub fn export_ratchet_tree(&self) -> RatchetTree {
+        self.public_group.export_ratchet_tree()
     }
 
     pub fn epoch(&self) -> GroupEpoch {
@@ -118,16 +127,37 @@ impl Group {
         &mut self,
         epoch: &GroupEpoch,
         joiner: &SignaturePublicKey,
-    ) -> Option<&[Option<Node>]> {
+    ) -> Option<&RatchetTree> {
         self.past_group_states.get_for_joiner(epoch, joiner)
     }
 
     pub fn leaf(&self, leaf_index: LeafNodeIndex) -> Option<&LeafNode> {
         self.public_group.leaf(leaf_index)
     }
+
+    pub fn members(&self) -> impl Iterator<Item = Member> + '_ {
+        self.public_group.members()
+    }
+}
+
+pub struct ProcessedAssistedMessagePlus {
+    pub processed_assisted_message: ProcessedAssistedMessage,
+    pub serialized_mls_message: SerializedMlsMessage,
 }
 
 pub enum ProcessedAssistedMessage {
+    PrivateMessage(PrivateMessageIn),
     NonCommit(ProcessedMessage),
     Commit(ProcessedMessage, GroupInfo),
+}
+
+impl ProcessedAssistedMessage {
+    pub fn sender(&self) -> Option<&Sender> {
+        match self {
+            ProcessedAssistedMessage::NonCommit(pm) | ProcessedAssistedMessage::Commit(pm, _) => {
+                Some(pm.sender())
+            }
+            ProcessedAssistedMessage::PrivateMessage(_) => None,
+        }
+    }
 }
