@@ -1,4 +1,5 @@
 use openmls::prelude::ProcessMessageError;
+use openmls_rust_crypto::MemoryStorageError;
 use thiserror::Error;
 
 #[cfg(doc)]
@@ -21,7 +22,7 @@ pub enum ProcessAssistedMessageError {
     InvalidGroupInfoMessage,
     /// See [`ProcessMessageError`] for more details.
     #[error(transparent)]
-    ProcessMessageError(#[from] ProcessMessageError),
+    ProcessMessageError(#[from] ProcessMessageError<MemoryStorageError>),
     /// Unknown sender.
     #[error("Unknown sender.")]
     UnknownSender,
