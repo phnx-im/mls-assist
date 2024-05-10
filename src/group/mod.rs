@@ -1,6 +1,7 @@
 use chrono::Duration;
 use openmls::{
     framing::PrivateMessageIn,
+    group::MergeCommitError,
     prelude::{
         group_info::{GroupInfo, VerifiableGroupInfo},
         ConfirmationTag, CreationFromExternalError, GroupEpoch, LeafNodeIndex, Member,
@@ -9,7 +10,7 @@ use openmls::{
     },
     treesync::{LeafNode, RatchetTree, RatchetTreeIn},
 };
-use openmls_rust_crypto::OpenMlsRustCrypto;
+use openmls_rust_crypto::{MemoryStorageError, OpenMlsRustCrypto};
 use openmls_traits::OpenMlsProvider;
 use serde::{Deserialize, Serialize};
 
@@ -36,10 +37,10 @@ impl Group {
     pub fn new(
         verifiable_group_info: VerifiableGroupInfo,
         leaf_node: RatchetTreeIn,
-    ) -> Result<Self, CreationFromExternalError> {
+    ) -> Result<Self, CreationFromExternalError<MemoryStorageError>> {
         let backend = OpenMlsRustCrypto::default();
         let (public_group, group_info) = PublicGroup::from_external(
-            backend.crypto(),
+            &backend,
             leaf_node,
             verifiable_group_info,
             ProposalStore::default(),
@@ -60,14 +61,14 @@ impl Group {
         &mut self,
         processed_assisted_message: ProcessedAssistedMessage,
         expiration_time: Duration,
-    ) {
+    ) -> Result<(), MergeCommitError<MemoryStorageError>> {
         let processed_message = match processed_assisted_message {
             ProcessedAssistedMessage::NonCommit(processed_message) => processed_message,
             ProcessedAssistedMessage::Commit(processed_message, group_info) => {
                 self.group_info = group_info;
                 processed_message
             }
-            ProcessedAssistedMessage::PrivateMessage(_) => return,
+            ProcessedAssistedMessage::PrivateMessage(_) => return Ok(()),
         };
         let added_potential_joiners = match processed_message.into_content() {
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
@@ -85,7 +86,8 @@ impl Group {
                     })
                     .collect();
 
-                self.public_group.merge_commit(*staged_commit);
+                self.public_group
+                    .merge_commit(self.backend.storage(), *staged_commit)?;
                 added_potential_joiners
             }
             ProcessedMessageContent::ProposalMessage(proposal) => {
@@ -105,7 +107,8 @@ impl Group {
         );
         // Check if any past group state has expired.
         self.past_group_states
-            .remove_expired_states(expiration_time)
+            .remove_expired_states(expiration_time);
+        Ok(())
     }
 
     pub fn group_info(&self) -> &GroupInfo {
