@@ -1,6 +1,8 @@
 use chrono::Duration;
+use errors::StorageError;
 use openmls::{
     framing::PrivateMessageIn,
+    group::MergeCommitError,
     prelude::{
         group_info::{GroupInfo, VerifiableGroupInfo},
         ConfirmationTag, CreationFromExternalError, GroupEpoch, LeafNodeIndex, Member,
@@ -9,7 +11,6 @@ use openmls::{
     },
     treesync::{LeafNode, RatchetTree, RatchetTreeIn},
 };
-use openmls_rust_crypto::OpenMlsRustCrypto;
 use openmls_traits::OpenMlsProvider;
 use serde::{Deserialize, Serialize};
 
@@ -26,20 +27,24 @@ pub struct Group {
     public_group: PublicGroup,
     group_info: GroupInfo,
     past_group_states: PastGroupStates,
-    #[serde(skip)]
-    backend: OpenMlsRustCrypto,
 }
 
 impl Group {
     /// Create a new group state with the group consisting of the creator's
     /// leaf.
-    pub fn new(
+    pub fn new<Provider: OpenMlsProvider>(
+        provider: &Provider,
         verifiable_group_info: VerifiableGroupInfo,
         leaf_node: RatchetTreeIn,
-    ) -> Result<Self, CreationFromExternalError> {
-        let backend = OpenMlsRustCrypto::default();
+    ) -> Result<
+        Self,
+        CreationFromExternalError<StorageError<Provider>>, //<<Provider as OpenMlsProvider>::StorageProvider as StorageProviderTrait<
+                                                           //    CURRENT_VERSION,
+                                                           //>>::Error,
+                                                           //>,
+    > {
         let (public_group, group_info) = PublicGroup::from_external(
-            backend.crypto(),
+            provider,
             leaf_node,
             verifiable_group_info,
             ProposalStore::default(),
@@ -47,27 +52,23 @@ impl Group {
         Ok(Self {
             group_info,
             public_group,
-            backend,
             past_group_states: PastGroupStates::default(),
         })
     }
 
-    fn backend(&self) -> &OpenMlsRustCrypto {
-        &self.backend
-    }
-
-    pub fn accept_processed_message(
+    pub fn accept_processed_message<Provider: OpenMlsProvider>(
         &mut self,
+        provider: &Provider,
         processed_assisted_message: ProcessedAssistedMessage,
         expiration_time: Duration,
-    ) {
+    ) -> Result<(), MergeCommitError<StorageError<Provider>>> {
         let processed_message = match processed_assisted_message {
             ProcessedAssistedMessage::NonCommit(processed_message) => processed_message,
             ProcessedAssistedMessage::Commit(processed_message, group_info) => {
                 self.group_info = group_info;
                 processed_message
             }
-            ProcessedAssistedMessage::PrivateMessage(_) => return,
+            ProcessedAssistedMessage::PrivateMessage(_) => return Ok(()),
         };
         let added_potential_joiners = match processed_message.into_content() {
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
@@ -85,7 +86,8 @@ impl Group {
                     })
                     .collect();
 
-                self.public_group.merge_commit(*staged_commit);
+                self.public_group
+                    .merge_commit(provider.storage(), *staged_commit)?;
                 added_potential_joiners
             }
             ProcessedMessageContent::ProposalMessage(proposal) => {
@@ -105,7 +107,8 @@ impl Group {
         );
         // Check if any past group state has expired.
         self.past_group_states
-            .remove_expired_states(expiration_time)
+            .remove_expired_states(expiration_time);
+        Ok(())
     }
 
     pub fn group_info(&self) -> &GroupInfo {
