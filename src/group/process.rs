@@ -4,10 +4,12 @@ use super::{errors::LibraryError, *};
 
 impl Group {
     /// Returns a [`ProcessedMessage`] for inspection.
-    pub fn process_assisted_message(
+    pub fn process_assisted_message<Provider: OpenMlsProvider>(
         &self,
+        provider: &Provider,
         assisted_message: AssistedMessageIn,
-    ) -> Result<ProcessedAssistedMessagePlus, ProcessAssistedMessageError> {
+    ) -> Result<ProcessedAssistedMessagePlus, ProcessAssistedMessageError<StorageError<Provider>>>
+    {
         let (commit, assisted_group_info) = match assisted_message.mls_message {
             ProtocolMessage::PrivateMessage(private_message) => {
                 // We can't process private messages using the PublicGroup, so
@@ -30,9 +32,7 @@ impl Group {
                         // Proposals are fed to the PublicGroup s.t. they are
                         // put into the ProposalStore. Otherwise we don't do
                         // anything with them.
-                        let processed_message = self
-                            .public_group
-                            .process_message(self.backend().crypto(), pm)?;
+                        let processed_message = self.public_group.process_message(provider, pm)?;
                         let processed_assisted_message =
                             ProcessedAssistedMessage::NonCommit(processed_message);
                         let message_plus = ProcessedAssistedMessagePlus {
@@ -56,10 +56,9 @@ impl Group {
         };
         // First process the message, then verify that the group info
         // checks out.
-        let processed_message = self.public_group.process_message(
-            self.backend().crypto(),
-            ProtocolMessage::PublicMessage(commit.clone()),
-        )?;
+        let processed_message = self
+            .public_group
+            .process_message(provider, ProtocolMessage::PublicMessage(commit.clone()))?;
         let sender = processed_message.sender().clone();
         let confirmation_tag = commit
             .confirmation_tag()
@@ -90,6 +89,7 @@ impl Group {
             }
         };
         let group_info: GroupInfo = self.validate_group_info(
+            provider,
             assisted_sender,
             staged_commit,
             confirmation_tag,
@@ -116,13 +116,14 @@ enum AssistedSender {
 
 // Helper functions
 impl Group {
-    fn validate_group_info(
+    fn validate_group_info<Provider: OpenMlsProvider>(
         &self,
+        provider: &Provider,
         sender: AssistedSender,
         staged_commit: &StagedCommit,
         confirmation_tag: ConfirmationTag,
         assisted_group_info: AssistedGroupInfoIn,
-    ) -> Result<GroupInfo, ProcessAssistedMessageError> {
+    ) -> Result<GroupInfo, ProcessAssistedMessageError<StorageError<Provider>>> {
         let signature_scheme = self.group_info().group_context().ciphersuite().into();
         let (sender_index, sender_pk) = match sender {
             AssistedSender::Member(index) => {
@@ -164,7 +165,7 @@ impl Group {
         );
 
         verifiable_group_info
-            .verify(self.backend().crypto(), &sender_pk)
+            .verify(provider.crypto(), &sender_pk)
             .map_err(|_| ProcessAssistedMessageError::InvalidGroupInfoSignature)
     }
 }
