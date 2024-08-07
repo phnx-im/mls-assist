@@ -12,7 +12,7 @@ use openmls::{
     treesync::{LeafNode, RatchetTree, RatchetTreeIn},
 };
 use openmls_traits::OpenMlsProvider;
-use serde::{Deserialize, Serialize};
+use provider::MlsAssistProvider;
 
 use crate::messages::{AssistedGroupInfoIn, AssistedMessageIn, SerializedMlsMessage};
 
@@ -21,8 +21,8 @@ use self::{errors::ProcessAssistedMessageError, past_group_states::PastGroupStat
 pub mod errors;
 mod past_group_states;
 pub mod process;
+pub mod provider;
 
-#[derive(Serialize, Deserialize)]
 pub struct Group {
     public_group: PublicGroup,
     group_info: GroupInfo,
@@ -30,33 +30,34 @@ pub struct Group {
 }
 
 impl Group {
-    /// Create a new group state with the group consisting of the creator's
-    /// leaf.
-    pub fn new<Provider: OpenMlsProvider>(
+    /// Create a new group state.
+    pub fn new<Provider: MlsAssistProvider>(
         provider: &Provider,
         verifiable_group_info: VerifiableGroupInfo,
-        leaf_node: RatchetTreeIn,
-    ) -> Result<
-        Self,
-        CreationFromExternalError<StorageError<Provider>>, //<<Provider as OpenMlsProvider>::StorageProvider as StorageProviderTrait<
-                                                           //    CURRENT_VERSION,
-                                                           //>>::Error,
-                                                           //>,
-    > {
+        ratchet_tree: RatchetTreeIn,
+    ) -> Result<Self, CreationFromExternalError<StorageError<Provider>>> {
         let (public_group, group_info) = PublicGroup::from_external(
             provider,
-            leaf_node,
+            ratchet_tree,
             verifiable_group_info,
             ProposalStore::default(),
         )?;
+        let group_id = group_info.group_context().group_id();
+        let past_group_states = PastGroupStates::default();
+        provider
+            .write_group_info(group_id, &group_info)
+            .map_err(|e| CreationFromExternalError::WriteToStorageError(e))?;
+        provider
+            .write_past_group_states(group_id, &past_group_states)
+            .map_err(|e| CreationFromExternalError::WriteToStorageError(e))?;
         Ok(Self {
             group_info,
             public_group,
-            past_group_states: PastGroupStates::default(),
+            past_group_states,
         })
     }
 
-    pub fn accept_processed_message<Provider: OpenMlsProvider>(
+    pub fn accept_processed_message<Provider: MlsAssistProvider>(
         &mut self,
         provider: &Provider,
         processed_assisted_message: ProcessedAssistedMessage,
@@ -108,6 +109,13 @@ impl Group {
         // Check if any past group state has expired.
         self.past_group_states
             .remove_expired_states(expiration_time);
+        let group_id = self.group_info.group_context().group_id();
+        provider
+            .write_group_info(group_id, self.group_info())
+            .map_err(|e| MergeCommitError::StorageError(e))?;
+        provider
+            .write_past_group_states(group_id, &self.past_group_states)
+            .map_err(|e| MergeCommitError::StorageError(e))?;
         Ok(())
     }
 
