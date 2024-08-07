@@ -6,9 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-openmls_traits = { git = "https://github.com/openmls/openmls.git" }
+openmls_traits = { git = "https://github.com/openmls/openmls.git", branch = "raphael/remove-serde-public-group" }
 serde = { version = "1.0.147", features = ["derive"] }
-openmls = { git = "https://github.com/openmls/openmls.git" }
-openmls_rust_crypto = { git = "https://github.com/openmls/openmls.git" }
-thiserror = "^1.0"
+openmls = { git = "https://github.com/openmls/openmls.git", branch = "raphael/remove-serde-public-group" }
+openmls_rust_crypto = { git = "https://github.com/openmls/openmls.git", branch = "raphael/remove-serde-public-group" }
+thiserror = "1.0"
+serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }

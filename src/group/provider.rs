@@ -1,7 +1,5 @@
-use openmls_traits::{
-    storage::{traits::GroupId, CURRENT_VERSION},
-    OpenMlsProvider,
-};
+use openmls::storage::OpenMlsProvider;
+use openmls_traits::storage::{traits::GroupId, CURRENT_VERSION};
 use serde::{de::DeserializeOwned, Serialize};
 
 use super::errors::StorageError;
@@ -17,7 +15,7 @@ pub trait MlsAssistProvider: OpenMlsProvider {
     fn read_past_group_states<PastGroupStates: DeserializeOwned>(
         &self,
         group_id: &impl GroupId<CURRENT_VERSION>,
-    ) -> Result<PastGroupStates, StorageError<Self>>;
+    ) -> Result<Option<PastGroupStates>, StorageError<Self>>;
 
     fn write_group_info(
         &self,
@@ -28,5 +26,5 @@ pub trait MlsAssistProvider: OpenMlsProvider {
     fn read_group_info<GroupInfo: DeserializeOwned>(
         &self,
         group_id: &impl GroupId<CURRENT_VERSION>,
-    ) -> Result<GroupInfo, StorageError<Self>>;
+    ) -> Result<Option<GroupInfo>, StorageError<Self>>;
 }

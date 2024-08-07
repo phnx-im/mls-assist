@@ -2,7 +2,7 @@ use chrono::Duration;
 use errors::StorageError;
 use openmls::{
     framing::PrivateMessageIn,
-    group::MergeCommitError,
+    group::{GroupId, MergeCommitError},
     prelude::{
         group_info::{GroupInfo, VerifiableGroupInfo},
         ConfirmationTag, CreationFromExternalError, GroupEpoch, LeafNodeIndex, Member,
@@ -55,6 +55,28 @@ impl Group {
             public_group,
             past_group_states,
         })
+    }
+
+    pub fn load<Provider: MlsAssistProvider>(
+        provider: &Provider,
+        group_id: &GroupId,
+    ) -> Result<Option<Self>, StorageError<Provider>> {
+        let group_info_option = provider.read_group_info(group_id)?;
+        let past_group_states_option = provider.read_past_group_states(group_id)?;
+        let public_group_option = PublicGroup::load(provider.storage(), group_id)?;
+        let (Some(group_info), Some(past_group_states), Some(public_group)) = (
+            group_info_option,
+            past_group_states_option,
+            public_group_option,
+        ) else {
+            return Ok(None);
+        };
+        let group = Self {
+            group_info,
+            public_group,
+            past_group_states,
+        };
+        Ok(Some(group))
     }
 
     pub fn accept_processed_message<Provider: MlsAssistProvider>(
