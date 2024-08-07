@@ -46,10 +46,10 @@ impl Group {
         let past_group_states = PastGroupStates::default();
         provider
             .write_group_info(group_id, &group_info)
-            .map_err(|e| CreationFromExternalError::WriteToStorageError(e))?;
+            .map_err(CreationFromExternalError::WriteToStorageError)?;
         provider
             .write_past_group_states(group_id, &past_group_states)
-            .map_err(|e| CreationFromExternalError::WriteToStorageError(e))?;
+            .map_err(CreationFromExternalError::WriteToStorageError)?;
         Ok(Self {
             group_info,
             public_group,
@@ -134,10 +134,10 @@ impl Group {
         let group_id = self.group_info.group_context().group_id();
         provider
             .write_group_info(group_id, self.group_info())
-            .map_err(|e| MergeCommitError::StorageError(e))?;
+            .map_err(MergeCommitError::StorageError)?;
         provider
             .write_past_group_states(group_id, &self.past_group_states)
-            .map_err(|e| MergeCommitError::StorageError(e))?;
+            .map_err(MergeCommitError::StorageError)?;
         Ok(())
     }
 

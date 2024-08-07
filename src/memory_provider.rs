@@ -57,7 +57,7 @@ impl MlsAssistProvider for MlsAssistRustCrypto {
         let Some(past_group_states_bytes) = past_group_states.get(&group_id_bytes) else {
             return Ok(None);
         };
-        serde_json::from_slice(&past_group_states_bytes)
+        serde_json::from_slice(past_group_states_bytes)
             .map(Some)
             .map_err(StorageError::<Self>::from)
     }
@@ -83,7 +83,7 @@ impl MlsAssistProvider for MlsAssistRustCrypto {
         let Some(group_info_bytes) = group_infos.get(&group_id_bytes) else {
             return Ok(None);
         };
-        serde_json::from_slice(&group_info_bytes)
+        serde_json::from_slice(group_info_bytes)
             .map(Some)
             .map_err(StorageError::<Self>::from)
     }
