@@ -1,19 +1,78 @@
 use std::{collections::HashMap, sync::RwLock};
 
-use openmls_rust_crypto::{MemoryStorage, OpenMlsRustCrypto, RustCrypto};
+use openmls_rust_crypto::{MemoryStorage, RustCrypto};
 use openmls_traits::{
     storage::{traits::GroupId, CURRENT_VERSION},
     OpenMlsProvider,
 };
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::group::{errors::StorageError, provider::MlsAssistProvider};
 
 #[derive(Default)]
 pub struct MlsAssistRustCrypto {
-    openmls_provider: OpenMlsRustCrypto,
+    crypto: RustCrypto,
+    storage: MemoryStorage,
     past_group_states: RwLock<HashMap<Vec<u8>, Vec<u8>>>,
     group_infos: RwLock<HashMap<Vec<u8>, Vec<u8>>>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SerializableMlsAssistRustCrypto {
+    storage_bytes: Vec<(Vec<u8>, Vec<u8>)>,
+    past_group_states_bytes: Vec<(Vec<u8>, Vec<u8>)>,
+    group_infos_bytes: Vec<(Vec<u8>, Vec<u8>)>,
+}
+
+impl MlsAssistRustCrypto {
+    pub fn serialize(&self) -> Result<Vec<u8>, serde_json::Error> {
+        let storage = self.storage.values.read().unwrap();
+        let storage_bytes = storage
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect::<Vec<_>>();
+        let past_group_states_bytes = self
+            .past_group_states
+            .read()
+            .unwrap()
+            .iter()
+            .map(|(group_id_bytes, past_group_states_bytes)| {
+                (group_id_bytes.clone(), past_group_states_bytes.clone())
+            })
+            .collect();
+        let group_infos_bytes = self
+            .group_infos
+            .read()
+            .unwrap()
+            .iter()
+            .map(|(group_id_bytes, group_info_bytes)| {
+                (group_id_bytes.clone(), group_info_bytes.clone())
+            })
+            .collect();
+        let serialized = SerializableMlsAssistRustCrypto {
+            storage_bytes,
+            past_group_states_bytes,
+            group_infos_bytes,
+        };
+        serde_json::to_vec(&serialized)
+    }
+
+    pub fn deserialize(serialized: &[u8]) -> Result<Self, serde_json::Error> {
+        let deserialized: SerializableMlsAssistRustCrypto = serde_json::from_slice(serialized)?;
+        let past_group_states =
+            RwLock::new(deserialized.past_group_states_bytes.into_iter().collect());
+        let group_infos = RwLock::new(deserialized.group_infos_bytes.into_iter().collect());
+        let storage = MemoryStorage {
+            values: RwLock::new(deserialized.storage_bytes.into_iter().collect()),
+        };
+        let mls_assist_provider = MlsAssistRustCrypto {
+            storage,
+            past_group_states,
+            group_infos,
+            ..Default::default()
+        };
+        Ok(mls_assist_provider)
+    }
 }
 
 impl OpenMlsProvider for MlsAssistRustCrypto {
@@ -24,15 +83,15 @@ impl OpenMlsProvider for MlsAssistRustCrypto {
     type StorageProvider = MemoryStorage;
 
     fn storage(&self) -> &Self::StorageProvider {
-        self.openmls_provider.storage()
+        &self.storage
     }
 
     fn crypto(&self) -> &Self::CryptoProvider {
-        self.openmls_provider.crypto()
+        &self.crypto
     }
 
     fn rand(&self) -> &Self::RandProvider {
-        self.openmls_provider.rand()
+        &self.crypto
     }
 }
 
