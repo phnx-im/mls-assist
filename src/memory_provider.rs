@@ -9,6 +9,7 @@ use serde::de::DeserializeOwned;
 
 use crate::group::{errors::StorageError, provider::MlsAssistProvider};
 
+#[derive(Default)]
 pub struct MlsAssistRustCrypto {
     openmls_provider: OpenMlsRustCrypto,
     past_group_states: RwLock<HashMap<Vec<u8>, Vec<u8>>>,
