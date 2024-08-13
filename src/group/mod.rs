@@ -11,7 +11,6 @@ use openmls::{
     },
     treesync::{LeafNode, RatchetTree, RatchetTreeIn},
 };
-use openmls_traits::OpenMlsProvider;
 use provider::MlsAssistProvider;
 
 use crate::messages::{AssistedGroupInfoIn, AssistedMessageIn, SerializedMlsMessage};
@@ -35,9 +34,10 @@ impl Group {
         provider: &Provider,
         verifiable_group_info: VerifiableGroupInfo,
         ratchet_tree: RatchetTreeIn,
-    ) -> Result<Self, CreationFromExternalError<StorageError<Provider>>> {
+    ) -> Result<Self, CreationFromExternalError<StorageError<Provider::Storage>>> {
         let (public_group, group_info) = PublicGroup::from_external(
-            provider,
+            provider.crypto(),
+            provider.storage(),
             ratchet_tree,
             verifiable_group_info,
             ProposalStore::default(),
@@ -60,7 +60,7 @@ impl Group {
     pub fn load<Provider: MlsAssistProvider>(
         provider: &Provider,
         group_id: &GroupId,
-    ) -> Result<Option<Self>, StorageError<Provider>> {
+    ) -> Result<Option<Self>, StorageError<Provider::Storage>> {
         let group_info_option = provider.read_group_info(group_id)?;
         let past_group_states_option = provider.read_past_group_states(group_id)?;
         let public_group_option = PublicGroup::load(provider.storage(), group_id)?;
@@ -84,7 +84,7 @@ impl Group {
         provider: &Provider,
         processed_assisted_message: ProcessedAssistedMessage,
         expiration_time: Duration,
-    ) -> Result<(), MergeCommitError<StorageError<Provider>>> {
+    ) -> Result<(), MergeCommitError<StorageError<Provider::Storage>>> {
         let processed_message = match processed_assisted_message {
             ProcessedAssistedMessage::NonCommit(processed_message) => processed_message,
             ProcessedAssistedMessage::Commit(processed_message, group_info) => {
@@ -114,7 +114,9 @@ impl Group {
                 added_potential_joiners
             }
             ProcessedMessageContent::ProposalMessage(proposal) => {
-                self.public_group.add_proposal(*proposal);
+                self.public_group
+                    .add_proposal(provider.storage(), *proposal)
+                    .map_err(MergeCommitError::StorageError)?;
                 vec![]
             }
             ProcessedMessageContent::ApplicationMessage(_)

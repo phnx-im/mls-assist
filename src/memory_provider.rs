@@ -1,10 +1,7 @@
 use std::{collections::HashMap, sync::RwLock};
 
 use openmls_rust_crypto::{MemoryStorage, RustCrypto};
-use openmls_traits::{
-    storage::{traits::GroupId, CURRENT_VERSION},
-    OpenMlsProvider,
-};
+use openmls_traits::storage::{traits::GroupId, CURRENT_VERSION};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::group::{errors::StorageError, provider::MlsAssistProvider};
@@ -75,32 +72,30 @@ impl MlsAssistRustCrypto {
     }
 }
 
-impl OpenMlsProvider for MlsAssistRustCrypto {
-    type CryptoProvider = RustCrypto;
+impl MlsAssistProvider for MlsAssistRustCrypto {
+    type Crypto = RustCrypto;
 
-    type RandProvider = RustCrypto;
+    type Rand = RustCrypto;
 
-    type StorageProvider = MemoryStorage;
+    type Storage = MemoryStorage;
 
-    fn storage(&self) -> &Self::StorageProvider {
+    fn storage(&self) -> &Self::Storage {
         &self.storage
     }
 
-    fn crypto(&self) -> &Self::CryptoProvider {
+    fn crypto(&self) -> &Self::Crypto {
         &self.crypto
     }
 
-    fn rand(&self) -> &Self::RandProvider {
+    fn rand(&self) -> &Self::Rand {
         &self.crypto
     }
-}
 
-impl MlsAssistProvider for MlsAssistRustCrypto {
     fn write_past_group_states(
         &self,
         group_id: &impl GroupId<CURRENT_VERSION>,
         past_group_states: &impl serde::Serialize,
-    ) -> Result<(), StorageError<Self>> {
+    ) -> Result<(), StorageError<Self::Storage>> {
         let group_id_bytes = serde_json::to_vec(group_id)?;
         let past_group_states_bytes = serde_json::to_vec(past_group_states)?;
         let mut past_group_states = self.past_group_states.write().unwrap();
@@ -111,7 +106,7 @@ impl MlsAssistProvider for MlsAssistRustCrypto {
     fn read_past_group_states<PastGroupStates: DeserializeOwned>(
         &self,
         group_id: &impl GroupId<CURRENT_VERSION>,
-    ) -> Result<Option<PastGroupStates>, StorageError<Self>> {
+    ) -> Result<Option<PastGroupStates>, StorageError<Self::Storage>> {
         let group_id_bytes = serde_json::to_vec(group_id)?;
         let past_group_states = self.past_group_states.read().unwrap();
         let Some(past_group_states_bytes) = past_group_states.get(&group_id_bytes) else {
@@ -119,14 +114,14 @@ impl MlsAssistProvider for MlsAssistRustCrypto {
         };
         serde_json::from_slice(past_group_states_bytes)
             .map(Some)
-            .map_err(StorageError::<Self>::from)
+            .map_err(StorageError::<Self::Storage>::from)
     }
 
     fn write_group_info(
         &self,
         group_id: &impl GroupId<CURRENT_VERSION>,
         group_info: &impl serde::Serialize,
-    ) -> Result<(), StorageError<Self>> {
+    ) -> Result<(), StorageError<Self::Storage>> {
         let group_id_bytes = serde_json::to_vec(group_id)?;
         let group_info_bytes = serde_json::to_vec(group_info)?;
         let mut group_infos = self.group_infos.write().unwrap();
@@ -137,7 +132,7 @@ impl MlsAssistProvider for MlsAssistRustCrypto {
     fn read_group_info<GroupInfo: DeserializeOwned>(
         &self,
         group_id: &impl GroupId<CURRENT_VERSION>,
-    ) -> Result<Option<GroupInfo>, StorageError<Self>> {
+    ) -> Result<Option<GroupInfo>, StorageError<Self::Storage>> {
         let group_id_bytes = serde_json::to_vec(group_id)?;
         let group_infos = self.group_infos.read().unwrap();
         let Some(group_info_bytes) = group_infos.get(&group_id_bytes) else {
@@ -145,6 +140,6 @@ impl MlsAssistProvider for MlsAssistRustCrypto {
         };
         serde_json::from_slice(group_info_bytes)
             .map(Some)
-            .map_err(StorageError::<Self>::from)
+            .map_err(StorageError::<Self::Storage>::from)
     }
 }

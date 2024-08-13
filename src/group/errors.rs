@@ -1,6 +1,6 @@
 use openmls::prelude::ProcessMessageError;
 use openmls_traits::{
-    storage::StorageProvider as StorageProviderTrait, storage::CURRENT_VERSION, OpenMlsProvider,
+    public_storage::PublicStorageProvider as PublicStorageProviderTrait, storage::CURRENT_VERSION,
 };
 use thiserror::Error;
 
@@ -8,11 +8,11 @@ use thiserror::Error;
 use openmls::prelude::{group_info::GroupInfo, GroupContext, ProcessedMessage};
 
 pub type StorageError<Provider> =
-    <<Provider as OpenMlsProvider>::StorageProvider as StorageProviderTrait<CURRENT_VERSION>>::Error;
+    <Provider as PublicStorageProviderTrait<CURRENT_VERSION>>::PublicError;
 
 /// Process message error
 #[derive(Error, Debug, PartialEq, Clone)]
-pub enum ProcessAssistedMessageError<StorageError> {
+pub enum ProcessAssistedMessageError {
     /// Invalid assisted message.
     #[error("Invalid assisted message.")]
     InvalidAssistedMessage,
@@ -27,7 +27,7 @@ pub enum ProcessAssistedMessageError<StorageError> {
     InvalidGroupInfoMessage,
     /// See [`ProcessMessageError`] for more details.
     #[error(transparent)]
-    ProcessMessageError(#[from] ProcessMessageError<StorageError>),
+    ProcessMessageError(#[from] ProcessMessageError),
     /// Unknown sender.
     #[error("Unknown sender.")]
     UnknownSender,
