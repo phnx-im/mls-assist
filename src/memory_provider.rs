@@ -444,6 +444,7 @@ impl<C: Codec> MlsAssistStorageProvider for MlsAssistMemoryStorage<C> {
     }
 }
 
+#[derive(Default)]
 pub struct MlsAssistRustCrypto<C: Codec> {
     crypto: RustCrypto,
     storage: MlsAssistMemoryStorage<C>,
