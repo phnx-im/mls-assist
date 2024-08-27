@@ -1,12 +1,12 @@
-use openmls::prelude::{ContentType, ProtocolMessage, Verifiable};
+use openmls::prelude::{ContentType, OpenMlsCrypto, ProtocolMessage, Verifiable};
 
 use super::{errors::LibraryError, *};
 
 impl Group {
     /// Returns a [`ProcessedMessage`] for inspection.
-    pub fn process_assisted_message<Provider: MlsAssistProvider>(
+    pub fn process_assisted_message<CryptoProvider: OpenMlsCrypto>(
         &self,
-        provider: &Provider,
+        provider: &CryptoProvider,
         assisted_message: AssistedMessageIn,
     ) -> Result<ProcessedAssistedMessagePlus, ProcessAssistedMessageError> {
         let (commit, assisted_group_info) = match assisted_message.mls_message {
@@ -31,8 +31,7 @@ impl Group {
                         // Proposals are fed to the PublicGroup s.t. they are
                         // put into the ProposalStore. Otherwise we don't do
                         // anything with them.
-                        let processed_message =
-                            self.public_group.process_message(provider.crypto(), pm)?;
+                        let processed_message = self.public_group.process_message(provider, pm)?;
                         let processed_assisted_message =
                             ProcessedAssistedMessage::NonCommit(processed_message);
                         let message_plus = ProcessedAssistedMessagePlus {
@@ -56,10 +55,9 @@ impl Group {
         };
         // First process the message, then verify that the group info
         // checks out.
-        let processed_message = self.public_group.process_message(
-            provider.crypto(),
-            ProtocolMessage::PublicMessage(commit.clone()),
-        )?;
+        let processed_message = self
+            .public_group
+            .process_message(provider, ProtocolMessage::PublicMessage(commit.clone()))?;
         let sender = processed_message.sender().clone();
         let confirmation_tag = commit
             .confirmation_tag()
@@ -117,9 +115,9 @@ enum AssistedSender {
 
 // Helper functions
 impl Group {
-    fn validate_group_info<Provider: MlsAssistProvider>(
+    fn validate_group_info<CryptoProvider: OpenMlsCrypto>(
         &self,
-        provider: &Provider,
+        provider: &CryptoProvider,
         sender: AssistedSender,
         staged_commit: &StagedCommit,
         confirmation_tag: ConfirmationTag,
@@ -166,7 +164,7 @@ impl Group {
         );
 
         verifiable_group_info
-            .verify(provider.crypto(), &sender_pk)
+            .verify(provider, &sender_pk)
             .map_err(|_| ProcessAssistedMessageError::InvalidGroupInfoSignature)
     }
 }

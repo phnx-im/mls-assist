@@ -14,7 +14,10 @@ use openmls_traits::{
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::group::{errors::StorageError, provider::MlsAssistProvider};
+use crate::{
+    group::errors::StorageError,
+    provider_traits::{MlsAssistProvider, MlsAssistStorageProvider},
+};
 
 #[derive(Serialize, Deserialize, Default)]
 struct PublicGroupState {
@@ -35,6 +38,8 @@ pub trait Codec {
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct MlsAssistMemoryStorage<C: Codec> {
+    past_group_states: RwLock<HashMap<Vec<u8>, Vec<u8>>>,
+    group_infos: RwLock<HashMap<Vec<u8>, Vec<u8>>>,
     group_states: RwLock<HashMap<Vec<u8>, PublicGroupState>>,
     _codec: PhantomData<C>,
 }
@@ -324,24 +329,16 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
     }
 }
 
-#[derive(Default)]
-pub struct MlsAssistRustCrypto<C: Codec> {
-    crypto: RustCrypto,
-    storage: MlsAssistMemoryStorage<C>,
-    past_group_states: RwLock<HashMap<Vec<u8>, Vec<u8>>>,
-    group_infos: RwLock<HashMap<Vec<u8>, Vec<u8>>>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct SerializableMlsAssistRustCrypto {
+#[derive(Default, Serialize, Deserialize)]
+struct SerializableMlsAssistMemoryStorage {
     storage_bytes: Vec<(Vec<u8>, Vec<u8>)>,
     past_group_states_bytes: Vec<(Vec<u8>, Vec<u8>)>,
     group_infos_bytes: Vec<(Vec<u8>, Vec<u8>)>,
 }
 
-impl<C: Codec> MlsAssistRustCrypto<C> {
+impl<C: Codec> MlsAssistMemoryStorage<C> {
     pub fn serialize(&self) -> Result<Vec<u8>, C::Error> {
-        let storage = self.storage.group_states.read().unwrap();
+        let storage = self.group_states.read().unwrap();
         let storage_bytes = storage
             .iter()
             .map(|(key, value)| Ok((key.clone(), C::to_vec(value)?)))
@@ -364,7 +361,7 @@ impl<C: Codec> MlsAssistRustCrypto<C> {
                 (group_id_bytes.clone(), group_info_bytes.clone())
             })
             .collect();
-        let serialized = SerializableMlsAssistRustCrypto {
+        let serialized = SerializableMlsAssistMemoryStorage {
             storage_bytes,
             past_group_states_bytes,
             group_infos_bytes,
@@ -373,11 +370,11 @@ impl<C: Codec> MlsAssistRustCrypto<C> {
     }
 
     pub fn deserialize(serialized: &[u8]) -> Result<Self, C::Error> {
-        let deserialized: SerializableMlsAssistRustCrypto = C::from_slice(serialized)?;
+        let deserialized: SerializableMlsAssistMemoryStorage = C::from_slice(serialized)?;
         let past_group_states =
             RwLock::new(deserialized.past_group_states_bytes.into_iter().collect());
         let group_infos = RwLock::new(deserialized.group_infos_bytes.into_iter().collect());
-        let storage = MlsAssistMemoryStorage {
+        let storage = Self {
             group_states: RwLock::new(
                 deserialized
                     .storage_bytes
@@ -385,16 +382,71 @@ impl<C: Codec> MlsAssistRustCrypto<C> {
                     .map(|(k, v)| Ok((k, C::from_slice(&v)?)))
                     .collect::<Result<HashMap<_, _>, _>>()?,
             ),
-            _codec: PhantomData,
-        };
-        let mls_assist_provider = MlsAssistRustCrypto {
-            crypto: RustCrypto::default(),
-            storage,
             past_group_states,
             group_infos,
+            _codec: PhantomData,
         };
-        Ok(mls_assist_provider)
+        Ok(storage)
     }
+}
+
+impl<C: Codec> MlsAssistStorageProvider for MlsAssistMemoryStorage<C> {
+    fn write_past_group_states(
+        &self,
+        group_id: &impl GroupId<CURRENT_VERSION>,
+        past_group_states: &impl serde::Serialize,
+    ) -> Result<(), StorageError<Self>> {
+        let group_id_bytes = C::to_vec(group_id)?;
+        let past_group_states_bytes = C::to_vec(past_group_states)?;
+        let mut past_group_states = self.past_group_states.write().unwrap();
+        past_group_states.insert(group_id_bytes, past_group_states_bytes);
+        Ok(())
+    }
+
+    fn read_past_group_states<PastGroupStates: DeserializeOwned>(
+        &self,
+        group_id: &impl GroupId<CURRENT_VERSION>,
+    ) -> Result<Option<PastGroupStates>, StorageError<Self>> {
+        let group_id_bytes = C::to_vec(group_id)?;
+        let past_group_states = self.past_group_states.read().unwrap();
+        let Some(past_group_states_bytes) = past_group_states.get(&group_id_bytes) else {
+            return Ok(None);
+        };
+        C::from_slice(past_group_states_bytes)
+            .map(Some)
+            .map_err(StorageError::<Self>::from)
+    }
+
+    fn write_group_info(
+        &self,
+        group_id: &impl GroupId<CURRENT_VERSION>,
+        group_info: &impl serde::Serialize,
+    ) -> Result<(), StorageError<Self>> {
+        let group_id_bytes = C::to_vec(group_id)?;
+        let group_info_bytes = C::to_vec(group_info)?;
+        let mut group_infos = self.group_infos.write().unwrap();
+        group_infos.insert(group_id_bytes, group_info_bytes);
+        Ok(())
+    }
+
+    fn read_group_info<GroupInfo: DeserializeOwned>(
+        &self,
+        group_id: &impl GroupId<CURRENT_VERSION>,
+    ) -> Result<Option<GroupInfo>, StorageError<Self>> {
+        let group_id_bytes = C::to_vec(group_id)?;
+        let group_infos = self.group_infos.read().unwrap();
+        let Some(group_info_bytes) = group_infos.get(&group_id_bytes) else {
+            return Ok(None);
+        };
+        C::from_slice(group_info_bytes)
+            .map(Some)
+            .map_err(StorageError::<Self>::from)
+    }
+}
+
+pub struct MlsAssistRustCrypto<C: Codec> {
+    crypto: RustCrypto,
+    storage: MlsAssistMemoryStorage<C>,
 }
 
 impl<C: Codec> MlsAssistProvider for MlsAssistRustCrypto<C> {
@@ -414,57 +466,5 @@ impl<C: Codec> MlsAssistProvider for MlsAssistRustCrypto<C> {
 
     fn rand(&self) -> &Self::Rand {
         &self.crypto
-    }
-
-    fn write_past_group_states(
-        &self,
-        group_id: &impl GroupId<CURRENT_VERSION>,
-        past_group_states: &impl serde::Serialize,
-    ) -> Result<(), StorageError<Self::Storage>> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let past_group_states_bytes = C::to_vec(past_group_states)?;
-        let mut past_group_states = self.past_group_states.write().unwrap();
-        past_group_states.insert(group_id_bytes, past_group_states_bytes);
-        Ok(())
-    }
-
-    fn read_past_group_states<PastGroupStates: DeserializeOwned>(
-        &self,
-        group_id: &impl GroupId<CURRENT_VERSION>,
-    ) -> Result<Option<PastGroupStates>, StorageError<Self::Storage>> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let past_group_states = self.past_group_states.read().unwrap();
-        let Some(past_group_states_bytes) = past_group_states.get(&group_id_bytes) else {
-            return Ok(None);
-        };
-        C::from_slice(past_group_states_bytes)
-            .map(Some)
-            .map_err(StorageError::<Self::Storage>::from)
-    }
-
-    fn write_group_info(
-        &self,
-        group_id: &impl GroupId<CURRENT_VERSION>,
-        group_info: &impl serde::Serialize,
-    ) -> Result<(), StorageError<Self::Storage>> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let group_info_bytes = C::to_vec(group_info)?;
-        let mut group_infos = self.group_infos.write().unwrap();
-        group_infos.insert(group_id_bytes, group_info_bytes);
-        Ok(())
-    }
-
-    fn read_group_info<GroupInfo: DeserializeOwned>(
-        &self,
-        group_id: &impl GroupId<CURRENT_VERSION>,
-    ) -> Result<Option<GroupInfo>, StorageError<Self::Storage>> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let group_infos = self.group_infos.read().unwrap();
-        let Some(group_info_bytes) = group_infos.get(&group_id_bytes) else {
-            return Ok(None);
-        };
-        C::from_slice(group_info_bytes)
-            .map(Some)
-            .map_err(StorageError::<Self::Storage>::from)
     }
 }
