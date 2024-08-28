@@ -450,6 +450,15 @@ pub struct MlsAssistRustCrypto<C: Codec> {
     storage: MlsAssistMemoryStorage<C>,
 }
 
+impl<C: Codec> From<MlsAssistMemoryStorage<C>> for MlsAssistRustCrypto<C> {
+    fn from(storage: MlsAssistMemoryStorage<C>) -> Self {
+        Self {
+            crypto: RustCrypto::default(),
+            storage,
+        }
+    }
+}
+
 impl<C: Codec> MlsAssistProvider for MlsAssistRustCrypto<C> {
     type Crypto = RustCrypto;
 
