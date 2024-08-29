@@ -9,7 +9,7 @@ use openmls_traits::{
     public_storage::PublicStorageProvider,
     storage::{
         traits::{self, GroupId},
-        CURRENT_VERSION,
+        Entity, CURRENT_VERSION,
     },
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -28,6 +28,23 @@ struct PublicGroupState {
     proposal_queue: BTreeMap<Vec<u8>, Vec<u8>>,
 }
 
+impl PublicGroupState {
+    fn is_empty(&self) -> bool {
+        self.treesync.is_empty()
+            && self.interim_transcript_hash.is_empty()
+            && self.context.is_empty()
+            && self.confirmation_tag.is_empty()
+            && self.proposal_queue.is_empty()
+    }
+}
+
+enum DataType {
+    TreeSync,
+    InterimTranscriptHash,
+    Context,
+    ConfirmationTag,
+}
+
 pub trait Codec {
     type Error: std::error::Error + std::fmt::Debug;
 
@@ -44,6 +61,90 @@ pub struct MlsAssistMemoryStorage<C: Codec> {
     _codec: PhantomData<C>,
 }
 
+impl<C: Codec> MlsAssistMemoryStorage<C> {
+    fn write_payload<
+        GroupId: traits::GroupId<CURRENT_VERSION>,
+        Payload: Entity<CURRENT_VERSION>,
+    >(
+        &self,
+        group_id: &GroupId,
+        payload: &Payload,
+        data_type: DataType,
+    ) -> Result<(), C::Error> {
+        let group_id_bytes = C::to_vec(group_id)?;
+        let payload_bytes = C::to_vec(payload)?;
+        let mut group_states = self.group_states.write().unwrap();
+        let public_group_state = group_states.entry(group_id_bytes).or_default();
+        match data_type {
+            DataType::TreeSync => {
+                public_group_state.treesync = payload_bytes;
+            }
+            DataType::InterimTranscriptHash => {
+                public_group_state.interim_transcript_hash = payload_bytes;
+            }
+            DataType::Context => {
+                public_group_state.context = payload_bytes;
+            }
+            DataType::ConfirmationTag => {
+                public_group_state.confirmation_tag = payload_bytes;
+            }
+        };
+        Ok(())
+    }
+
+    fn read_payload<GroupId: traits::GroupId<CURRENT_VERSION>, Payload: Entity<CURRENT_VERSION>>(
+        &self,
+        group_id: &GroupId,
+        data_type: DataType,
+    ) -> Result<Option<Payload>, C::Error> {
+        let group_id_bytes = C::to_vec(group_id)?;
+        let group_states = self.group_states.read().unwrap();
+        if let Some(public_group_state) = group_states.get(&group_id_bytes) {
+            let payload_bytes = match data_type {
+                DataType::TreeSync => &public_group_state.treesync,
+                DataType::InterimTranscriptHash => &public_group_state.interim_transcript_hash,
+                DataType::Context => &public_group_state.context,
+                DataType::ConfirmationTag => &public_group_state.confirmation_tag,
+            };
+            if payload_bytes.is_empty() {
+                return Ok(None);
+            }
+            C::from_slice(payload_bytes).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn delete_payload<GroupId: traits::GroupId<CURRENT_VERSION>>(
+        &self,
+        group_id: &GroupId,
+        data_type: DataType,
+    ) -> Result<(), C::Error> {
+        let group_id_bytes = C::to_vec(group_id)?;
+        let mut group_states = self.group_states.write().unwrap();
+        if let Some(public_group_state) = group_states.get_mut(&group_id_bytes) {
+            match data_type {
+                DataType::TreeSync => {
+                    public_group_state.treesync.clear();
+                }
+                DataType::InterimTranscriptHash => {
+                    public_group_state.interim_transcript_hash.clear();
+                }
+                DataType::Context => {
+                    public_group_state.context.clear();
+                }
+                DataType::ConfirmationTag => {
+                    public_group_state.confirmation_tag.clear();
+                }
+            };
+            if public_group_state.is_empty() {
+                group_states.remove(&group_id_bytes);
+            }
+        }
+        Ok(())
+    }
+}
+
 impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage<C> {
     /// An opaque error returned by all methods on this trait.
     type PublicError = C::Error;
@@ -57,12 +158,7 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
         group_id: &GroupId,
         tree: &TreeSync,
     ) -> Result<(), Self::PublicError> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let tree_bytes = C::to_vec(tree)?;
-        let mut group_states = self.group_states.write().unwrap();
-        let public_group_state = group_states.entry(group_id_bytes).or_default();
-        public_group_state.treesync = tree_bytes;
-        Ok(())
+        self.write_payload(group_id, tree, DataType::TreeSync)
     }
 
     /// Write the interim transcript hash.
@@ -74,12 +170,11 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
         group_id: &GroupId,
         interim_transcript_hash: &InterimTranscriptHash,
     ) -> Result<(), Self::PublicError> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let interim_transcript_hash_bytes = C::to_vec(interim_transcript_hash)?;
-        let mut group_states = self.group_states.write().unwrap();
-        let public_group_state = group_states.entry(group_id_bytes).or_default();
-        public_group_state.interim_transcript_hash = interim_transcript_hash_bytes;
-        Ok(())
+        self.write_payload(
+            group_id,
+            interim_transcript_hash,
+            DataType::InterimTranscriptHash,
+        )
     }
 
     /// Write the group context.
@@ -91,12 +186,7 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
         group_id: &GroupId,
         group_context: &GroupContext,
     ) -> Result<(), Self::PublicError> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let group_context_bytes = C::to_vec(group_context)?;
-        let mut group_states = self.group_states.write().unwrap();
-        let public_group_state = group_states.entry(group_id_bytes).or_default();
-        public_group_state.context = group_context_bytes;
-        Ok(())
+        self.write_payload(group_id, group_context, DataType::Context)
     }
 
     /// Write the confirmation tag.
@@ -108,12 +198,7 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
         group_id: &GroupId,
         confirmation_tag: &ConfirmationTag,
     ) -> Result<(), Self::PublicError> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let confirmation_tag_bytes = C::to_vec(confirmation_tag)?;
-        let mut group_states = self.group_states.write().unwrap();
-        let public_group_state = group_states.entry(group_id_bytes).or_default();
-        public_group_state.confirmation_tag = confirmation_tag_bytes;
-        Ok(())
+        self.write_payload(group_id, confirmation_tag, DataType::ConfirmationTag)
     }
 
     /// Enqueue a proposal.
@@ -168,16 +253,7 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
         &self,
         group_id: &GroupId,
     ) -> Result<Option<TreeSync>, Self::PublicError> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let group_states = self.group_states.read().unwrap();
-        if let Some(public_group_state) = group_states.get(&group_id_bytes) {
-            if public_group_state.treesync.is_empty() {
-                return Ok(None);
-            }
-            C::from_slice(&public_group_state.treesync).map(Some)
-        } else {
-            Ok(None)
-        }
+        self.read_payload(group_id, DataType::TreeSync)
     }
 
     /// Returns the group context for the group with group id `group_id`.
@@ -188,16 +264,7 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
         &self,
         group_id: &GroupId,
     ) -> Result<Option<GroupContext>, Self::PublicError> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let group_states = self.group_states.read().unwrap();
-        if let Some(public_group_state) = group_states.get(&group_id_bytes) {
-            if public_group_state.context.is_empty() {
-                return Ok(None);
-            }
-            C::from_slice(&public_group_state.context).map(Some)
-        } else {
-            Ok(None)
-        }
+        self.read_payload(group_id, DataType::Context)
     }
 
     /// Returns the interim transcript hash for the group with group id `group_id`.
@@ -208,16 +275,7 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
         &self,
         group_id: &GroupId,
     ) -> Result<Option<InterimTranscriptHash>, Self::PublicError> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let group_states = self.group_states.read().unwrap();
-        if let Some(public_group_state) = group_states.get(&group_id_bytes) {
-            if public_group_state.interim_transcript_hash.is_empty() {
-                return Ok(None);
-            }
-            C::from_slice(&public_group_state.interim_transcript_hash).map(Some)
-        } else {
-            Ok(None)
-        }
+        self.read_payload(group_id, DataType::InterimTranscriptHash)
     }
 
     /// Returns the confirmation tag for the group with group id `group_id`.
@@ -228,16 +286,7 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
         &self,
         group_id: &GroupId,
     ) -> Result<Option<ConfirmationTag>, Self::PublicError> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let group_states = self.group_states.read().unwrap();
-        if let Some(public_group_state) = group_states.get(&group_id_bytes) {
-            if public_group_state.confirmation_tag.is_empty() {
-                return Ok(None);
-            }
-            C::from_slice(&public_group_state.confirmation_tag).map(Some)
-        } else {
-            Ok(None)
-        }
+        self.read_payload(group_id, DataType::ConfirmationTag)
     }
 
     /// Deletes the tree from storage
@@ -245,12 +294,7 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
         &self,
         group_id: &GroupId,
     ) -> Result<(), Self::PublicError> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let mut group_states = self.group_states.write().unwrap();
-        if let Some(public_group_state) = group_states.get_mut(&group_id_bytes) {
-            public_group_state.treesync.clear();
-        }
-        Ok(())
+        self.delete_payload(group_id, DataType::TreeSync)
     }
 
     /// Deletes the confirmation tag from storage
@@ -258,12 +302,7 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
         &self,
         group_id: &GroupId,
     ) -> Result<(), Self::PublicError> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let mut group_states = self.group_states.write().unwrap();
-        if let Some(public_group_state) = group_states.get_mut(&group_id_bytes) {
-            public_group_state.confirmation_tag.clear();
-        }
-        Ok(())
+        self.delete_payload(group_id, DataType::ConfirmationTag)
     }
 
     /// Deletes the group context for the group with given id
@@ -271,12 +310,7 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
         &self,
         group_id: &GroupId,
     ) -> Result<(), Self::PublicError> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let mut group_states = self.group_states.write().unwrap();
-        if let Some(public_group_state) = group_states.get_mut(&group_id_bytes) {
-            public_group_state.context.clear();
-        }
-        Ok(())
+        self.delete_payload(group_id, DataType::Context)
     }
 
     /// Deletes the interim transcript hash for the group with given id
@@ -284,12 +318,7 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
         &self,
         group_id: &GroupId,
     ) -> Result<(), Self::PublicError> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let mut group_states = self.group_states.write().unwrap();
-        if let Some(public_group_state) = group_states.get_mut(&group_id_bytes) {
-            public_group_state.interim_transcript_hash.clear();
-        }
-        Ok(())
+        self.delete_payload(group_id, DataType::InterimTranscriptHash)
     }
 
     /// Removes an individual proposal from the proposal queue of the group with the provided id
@@ -308,6 +337,9 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
             public_group_state
                 .proposal_queue
                 .remove(&proposal_ref_bytes);
+            if public_group_state.is_empty() {
+                group_states.remove(&group_id_bytes);
+            }
         }
         Ok(())
     }
@@ -324,6 +356,9 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
         let mut group_states = self.group_states.write().unwrap();
         if let Some(public_group_state) = group_states.get_mut(&group_id_bytes) {
             public_group_state.proposal_queue.clear();
+            if public_group_state.is_empty() {
+                group_states.remove(&group_id_bytes);
+            }
         }
         Ok(())
     }
@@ -417,6 +452,16 @@ impl<C: Codec> MlsAssistStorageProvider for MlsAssistMemoryStorage<C> {
             .map_err(StorageError::<Self>::from)
     }
 
+    fn delete_group_info(
+        &self,
+        group_id: &impl GroupId<CURRENT_VERSION>,
+    ) -> Result<(), StorageError<Self>> {
+        let group_id_bytes = C::to_vec(group_id)?;
+        let mut group_infos = self.group_infos.write().unwrap();
+        group_infos.remove(&group_id_bytes);
+        Ok(())
+    }
+
     fn write_group_info(
         &self,
         group_id: &impl GroupId<CURRENT_VERSION>,
@@ -441,6 +486,16 @@ impl<C: Codec> MlsAssistStorageProvider for MlsAssistMemoryStorage<C> {
         C::from_slice(group_info_bytes)
             .map(Some)
             .map_err(StorageError::<Self>::from)
+    }
+
+    fn delete_past_group_states(
+        &self,
+        group_id: &impl GroupId<CURRENT_VERSION>,
+    ) -> Result<(), StorageError<Self>> {
+        let group_id_bytes = C::to_vec(group_id)?;
+        let mut past_group_states = self.past_group_states.write().unwrap();
+        past_group_states.remove(&group_id_bytes);
+        Ok(())
     }
 }
 

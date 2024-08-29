@@ -20,6 +20,11 @@ pub trait MlsAssistStorageProvider: PublicStorageProvider {
         group_id: &impl GroupId<CURRENT_VERSION>,
     ) -> Result<Option<PastGroupStates>, StorageError<Self>>;
 
+    fn delete_past_group_states(
+        &self,
+        group_id: &impl GroupId<CURRENT_VERSION>,
+    ) -> Result<(), StorageError<Self>>;
+
     fn write_group_info(
         &self,
         group_id: &impl GroupId<CURRENT_VERSION>,
@@ -30,6 +35,11 @@ pub trait MlsAssistStorageProvider: PublicStorageProvider {
         &self,
         group_id: &impl GroupId<CURRENT_VERSION>,
     ) -> Result<Option<GroupInfo>, StorageError<Self>>;
+
+    fn delete_group_info(
+        &self,
+        group_id: &impl GroupId<CURRENT_VERSION>,
+    ) -> Result<(), StorageError<Self>>;
 }
 
 /// A storage provider for MLS-assist.

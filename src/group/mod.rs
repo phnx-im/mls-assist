@@ -81,6 +81,19 @@ impl Group {
         Ok(Some(group))
     }
 
+    pub fn delete<StorageProvider: MlsAssistStorageProvider>(
+        provider: &StorageProvider,
+        group_id: &GroupId,
+    ) -> Result<(), StorageError<StorageProvider>> {
+        provider.delete_group_info(group_id)?;
+        provider.delete_past_group_states(group_id)?;
+        provider.delete_tree(group_id)?;
+        provider.delete_confirmation_tag(group_id)?;
+        provider.delete_context(group_id)?;
+        provider.delete_interim_transcript_hash(group_id)?;
+        Ok(())
+    }
+
     pub fn accept_processed_message<StorageProvider: MlsAssistStorageProvider>(
         &mut self,
         provider: &StorageProvider,
