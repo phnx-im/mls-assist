@@ -246,7 +246,7 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
     }
 
     /// Returns the TreeSync tree for the group with group id `group_id`.
-    fn treesync<
+    fn tree<
         GroupId: traits::GroupId<CURRENT_VERSION>,
         TreeSync: traits::TreeSync<CURRENT_VERSION>,
     >(
