@@ -1,3 +1,7 @@
+use crate::{
+    messages::{AssistedGroupInfoIn, AssistedMessageIn, SerializedMlsMessage},
+    provider_traits::{MlsAssistProvider, MlsAssistStorageProvider},
+};
 use chrono::Duration;
 use errors::StorageError;
 use openmls::{
@@ -11,16 +15,12 @@ use openmls::{
     },
     treesync::{LeafNode, RatchetTree, RatchetTreeIn},
 };
-use provider::MlsAssistProvider;
-
-use crate::messages::{AssistedGroupInfoIn, AssistedMessageIn, SerializedMlsMessage};
 
 use self::{errors::ProcessAssistedMessageError, past_group_states::PastGroupStates};
 
 pub mod errors;
 mod past_group_states;
 pub mod process;
-pub mod provider;
 
 pub struct Group {
     public_group: PublicGroup,
@@ -45,9 +45,11 @@ impl Group {
         let group_id = group_info.group_context().group_id();
         let past_group_states = PastGroupStates::default();
         provider
+            .storage()
             .write_group_info(group_id, &group_info)
             .map_err(CreationFromExternalError::WriteToStorageError)?;
         provider
+            .storage()
             .write_past_group_states(group_id, &past_group_states)
             .map_err(CreationFromExternalError::WriteToStorageError)?;
         Ok(Self {
@@ -57,13 +59,13 @@ impl Group {
         })
     }
 
-    pub fn load<Provider: MlsAssistProvider>(
-        provider: &Provider,
+    pub fn load<StorageProvider: MlsAssistStorageProvider>(
+        provider: &StorageProvider,
         group_id: &GroupId,
-    ) -> Result<Option<Self>, StorageError<Provider::Storage>> {
+    ) -> Result<Option<Self>, StorageError<StorageProvider>> {
         let group_info_option = provider.read_group_info(group_id)?;
         let past_group_states_option = provider.read_past_group_states(group_id)?;
-        let public_group_option = PublicGroup::load(provider.storage(), group_id)?;
+        let public_group_option = PublicGroup::load(provider, group_id)?;
         let (Some(group_info), Some(past_group_states), Some(public_group)) = (
             group_info_option,
             past_group_states_option,
@@ -79,12 +81,25 @@ impl Group {
         Ok(Some(group))
     }
 
-    pub fn accept_processed_message<Provider: MlsAssistProvider>(
+    pub fn delete<StorageProvider: MlsAssistStorageProvider>(
+        provider: &StorageProvider,
+        group_id: &GroupId,
+    ) -> Result<(), StorageError<StorageProvider>> {
+        provider.delete_group_info(group_id)?;
+        provider.delete_past_group_states(group_id)?;
+        provider.delete_tree(group_id)?;
+        provider.delete_confirmation_tag(group_id)?;
+        provider.delete_context(group_id)?;
+        provider.delete_interim_transcript_hash(group_id)?;
+        Ok(())
+    }
+
+    pub fn accept_processed_message<StorageProvider: MlsAssistStorageProvider>(
         &mut self,
-        provider: &Provider,
+        provider: &StorageProvider,
         processed_assisted_message: ProcessedAssistedMessage,
         expiration_time: Duration,
-    ) -> Result<(), MergeCommitError<StorageError<Provider::Storage>>> {
+    ) -> Result<(), MergeCommitError<StorageError<StorageProvider>>> {
         let processed_message = match processed_assisted_message {
             ProcessedAssistedMessage::NonCommit(processed_message) => processed_message,
             ProcessedAssistedMessage::Commit(processed_message, group_info) => {
@@ -109,13 +124,12 @@ impl Group {
                     })
                     .collect();
 
-                self.public_group
-                    .merge_commit(provider.storage(), *staged_commit)?;
+                self.public_group.merge_commit(provider, *staged_commit)?;
                 added_potential_joiners
             }
             ProcessedMessageContent::ProposalMessage(proposal) => {
                 self.public_group
-                    .add_proposal(provider.storage(), *proposal)
+                    .add_proposal(provider, *proposal)
                     .map_err(MergeCommitError::StorageError)?;
                 vec![]
             }

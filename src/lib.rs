@@ -8,3 +8,4 @@ pub use memory_provider::MlsAssistRustCrypto;
 pub mod group;
 pub mod memory_provider;
 pub mod messages;
+pub mod provider_traits;
