@@ -447,9 +447,7 @@ impl<C: Codec> MlsAssistStorageProvider for MlsAssistMemoryStorage<C> {
         let Some(past_group_states_bytes) = past_group_states.get(&group_id_bytes) else {
             return Ok(None);
         };
-        C::from_slice(past_group_states_bytes)
-            .map(Some)
-            .map_err(StorageError::<Self>::from)
+        C::from_slice(past_group_states_bytes).map(Some)
     }
 
     fn delete_group_info(
@@ -483,9 +481,7 @@ impl<C: Codec> MlsAssistStorageProvider for MlsAssistMemoryStorage<C> {
         let Some(group_info_bytes) = group_infos.get(&group_id_bytes) else {
             return Ok(None);
         };
-        C::from_slice(group_info_bytes)
-            .map(Some)
-            .map_err(StorageError::<Self>::from)
+        C::from_slice(group_info_bytes).map(Some)
     }
 
     fn delete_past_group_states(
