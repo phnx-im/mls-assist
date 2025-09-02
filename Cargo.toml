@@ -2,7 +2,7 @@
 name = "mls-assist"
 version = "0.1.0"
 edition = "2021"
-LICENSE = "GPL-3.0"
+license = "AGPL-3.0-or-later"
 
 [dependencies]
 serde = { version = "1.0.147", features = ["derive"] }
