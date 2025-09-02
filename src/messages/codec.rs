@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 use crate::tls_codec::{Deserialize, DeserializeBytes, Error as TlsCodecError, Serialize, Size};
 use openmls::{
     prelude::{MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, ProtocolMessage, WireFormat},

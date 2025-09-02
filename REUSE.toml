@@ -1,0 +1,10 @@
+version = 1
+SPDX-PackageName = "mls-assist"
+SPDX-PackageSupplier = "Phoenix R&D GmbH <hello@phnx.im>"
+SPDX-PackageDownloadLocation = "https://github.com/phnx-im/mls-assist"
+
+[[annotations]]
+path = "Cargo.lock"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Phoenix R&D GmbH <hello@phnx.im>"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
