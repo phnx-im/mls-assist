@@ -6,8 +6,9 @@ use openmls::prelude::tls_codec::{self, TlsDeserialize, TlsSerialize, TlsSize};
 use openmls::{
     framing::{ContentType, MlsMessageBodyOut},
     prelude::{
-        group_info::VerifiableGroupInfo, ConfirmationTag, Extensions, GroupContext, GroupId,
-        KeyPackageRef, LeafNodeIndex, MlsMessageOut, ProtocolMessage, Sender, Signature, Welcome,
+        ConfirmationTag, Extensions, GroupContext, GroupId, KeyPackageRef, LeafNodeIndex,
+        MlsMessageOut, ProtocolMessage, Sender, Signature, Welcome,
+        group_info::VerifiableGroupInfo,
     },
 };
 use thiserror::Error;

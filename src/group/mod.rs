@@ -12,10 +12,10 @@ use openmls::{
     framing::PrivateMessageIn,
     group::{GroupId, MergeCommitError},
     prelude::{
-        group_info::{GroupInfo, VerifiableGroupInfo},
         ConfirmationTag, CreationFromExternalError, GroupEpoch, LeafNodeIndex, Member,
         OpenMlsSignaturePublicKey, ProcessedMessage, ProcessedMessageContent, ProposalStore,
         PublicGroup, Sender, SignaturePublicKey, StagedCommit,
+        group_info::{GroupInfo, VerifiableGroupInfo},
     },
     treesync::{LeafNode, RatchetTree, RatchetTreeIn},
 };

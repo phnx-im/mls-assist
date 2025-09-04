@@ -12,11 +12,11 @@ use openmls_rust_crypto::RustCrypto;
 use openmls_traits::{
     public_storage::PublicStorageProvider,
     storage::{
+        CURRENT_VERSION, Entity,
         traits::{self, GroupId},
-        Entity, CURRENT_VERSION,
     },
 };
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::{
     group::errors::StorageError,

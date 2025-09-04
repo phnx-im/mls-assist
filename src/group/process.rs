@@ -49,7 +49,7 @@ impl Group {
                         let assisted_group_info = match assisted_message.group_info_option {
                             Some(agi) => agi,
                             None => {
-                                return Err(ProcessAssistedMessageError::InvalidAssistedMessage)
+                                return Err(ProcessAssistedMessageError::InvalidAssistedMessage);
                             }
                         };
                         (pm, assisted_group_info)
