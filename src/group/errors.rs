@@ -9,7 +9,7 @@ use openmls_traits::{
 use thiserror::Error;
 
 #[cfg(doc)]
-use openmls::prelude::{group_info::GroupInfo, GroupContext, ProcessedMessage};
+use openmls::prelude::{GroupContext, ProcessedMessage, group_info::GroupInfo};
 
 pub type StorageError<Provider> =
     <Provider as PublicStorageProviderTrait<CURRENT_VERSION>>::PublicError;

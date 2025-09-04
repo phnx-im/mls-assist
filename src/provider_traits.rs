@@ -6,9 +6,9 @@ use openmls::storage::PublicStorageProvider;
 use openmls_traits::{
     crypto::OpenMlsCrypto,
     random::OpenMlsRand,
-    storage::{traits::GroupId, CURRENT_VERSION},
+    storage::{CURRENT_VERSION, traits::GroupId},
 };
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use crate::group::errors::StorageError;
 
