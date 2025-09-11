@@ -10,8 +10,8 @@ license = "AGPL-3.0-or-later"
 
 [dependencies]
 serde = { version = "1.0.147", features = ["derive"] }
-openmls_traits = { git = "https://github.com/openmls/openmls.git" }
-openmls = { git = "https://github.com/openmls/openmls.git" }
-openmls_rust_crypto = { git = "https://github.com/openmls/openmls.git" }
+openmls_traits = { git = "https://github.com/openmls/openmls.git", rev = "e19efc810cf6c703b2ec8cc4fd7661a3c17e42d1" }
+openmls = { git = "https://github.com/openmls/openmls.git", rev = "e19efc810cf6c703b2ec8cc4fd7661a3c17e42d1" }
+openmls_rust_crypto = { git = "https://github.com/openmls/openmls.git", rev = "e19efc810cf6c703b2ec8cc4fd7661a3c17e42d1" }
 thiserror = "2.0"
 chrono = { version = "0.4", features = ["serde"] }
