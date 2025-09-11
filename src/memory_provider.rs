@@ -17,6 +17,7 @@ use openmls_traits::{
     },
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde_bytes::{ByteBuf, Bytes};
 
 use crate::{
     group::errors::StorageError,
@@ -25,10 +26,18 @@ use crate::{
 
 #[derive(Serialize, Deserialize, Default)]
 struct PublicGroupState {
+    #[serde(with = "serde_bytes")]
     treesync: Vec<u8>,
+    #[serde(with = "serde_bytes")]
     interim_transcript_hash: Vec<u8>,
+    #[serde(with = "serde_bytes")]
     context: Vec<u8>,
+    #[serde(with = "serde_bytes")]
     confirmation_tag: Vec<u8>,
+    #[serde(
+        serialize_with = "serde_btreemap_bytes::serialize",
+        deserialize_with = "serde_btreemap_bytes::deserialize"
+    )]
     proposal_queue: BTreeMap<Vec<u8>, Vec<u8>>,
 }
 
@@ -368,11 +377,18 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
     }
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Deserialize)]
 struct SerializableMlsAssistMemoryStorage {
-    storage_bytes: Vec<(Vec<u8>, Vec<u8>)>,
-    past_group_states_bytes: Vec<(Vec<u8>, Vec<u8>)>,
-    group_infos_bytes: Vec<(Vec<u8>, Vec<u8>)>,
+    storage_bytes: Vec<(ByteBuf, ByteBuf)>,
+    past_group_states_bytes: Vec<(ByteBuf, ByteBuf)>,
+    group_infos_bytes: Vec<(ByteBuf, ByteBuf)>,
+}
+
+#[derive(Default, Serialize)]
+struct SerializableMlsAssistMemoryStorageRef<'a> {
+    storage_bytes: Vec<(&'a Bytes, ByteBuf)>,
+    past_group_states_bytes: Vec<(&'a Bytes, &'a Bytes)>,
+    group_infos_bytes: Vec<(&'a Bytes, &'a Bytes)>,
 }
 
 impl<C: Codec> MlsAssistMemoryStorage<C> {
@@ -380,27 +396,26 @@ impl<C: Codec> MlsAssistMemoryStorage<C> {
         let storage = self.group_states.read().unwrap();
         let storage_bytes = storage
             .iter()
-            .map(|(key, value)| Ok((key.clone(), C::to_vec(value)?)))
+            .map(|(key, value)| Ok((Bytes::new(key), C::to_vec(value)?.into())))
             .collect::<Result<Vec<_>, _>>()?;
-        let past_group_states_bytes = self
-            .past_group_states
-            .read()
-            .unwrap()
+        let past_group_states = self.past_group_states.read().unwrap();
+        let past_group_states_bytes = past_group_states
             .iter()
             .map(|(group_id_bytes, past_group_states_bytes)| {
-                (group_id_bytes.clone(), past_group_states_bytes.clone())
+                (
+                    Bytes::new(group_id_bytes),
+                    Bytes::new(past_group_states_bytes),
+                )
             })
             .collect();
-        let group_infos_bytes = self
-            .group_infos
-            .read()
-            .unwrap()
+        let group_infos = self.group_infos.read().unwrap();
+        let group_infos_bytes = group_infos
             .iter()
             .map(|(group_id_bytes, group_info_bytes)| {
-                (group_id_bytes.clone(), group_info_bytes.clone())
+                (Bytes::new(group_id_bytes), Bytes::new(group_info_bytes))
             })
             .collect();
-        let serialized = SerializableMlsAssistMemoryStorage {
+        let serialized = SerializableMlsAssistMemoryStorageRef {
             storage_bytes,
             past_group_states_bytes,
             group_infos_bytes,
@@ -410,15 +425,26 @@ impl<C: Codec> MlsAssistMemoryStorage<C> {
 
     pub fn deserialize(serialized: &[u8]) -> Result<Self, C::Error> {
         let deserialized: SerializableMlsAssistMemoryStorage = C::from_slice(serialized)?;
-        let past_group_states =
-            RwLock::new(deserialized.past_group_states_bytes.into_iter().collect());
-        let group_infos = RwLock::new(deserialized.group_infos_bytes.into_iter().collect());
+        let past_group_states = RwLock::new(
+            deserialized
+                .past_group_states_bytes
+                .into_iter()
+                .map(|(k, v)| (k.into_vec(), v.into_vec()))
+                .collect(),
+        );
+        let group_infos = RwLock::new(
+            deserialized
+                .group_infos_bytes
+                .into_iter()
+                .map(|(k, v)| (k.into_vec(), v.into_vec()))
+                .collect(),
+        );
         let storage = Self {
             group_states: RwLock::new(
                 deserialized
                     .storage_bytes
                     .into_iter()
-                    .map(|(k, v)| Ok((k, C::from_slice(&v)?)))
+                    .map(|(k, v)| Ok((k.into_vec(), C::from_slice(&v)?)))
                     .collect::<Result<HashMap<_, _>, _>>()?,
             ),
             past_group_states,
@@ -531,5 +557,34 @@ impl<C: Codec> MlsAssistProvider for MlsAssistRustCrypto<C> {
 
     fn rand(&self) -> &Self::Rand {
         &self.crypto
+    }
+}
+
+mod serde_btreemap_bytes {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use serde_bytes::{ByteBuf, Bytes};
+    use std::collections::BTreeMap;
+
+    pub fn serialize<S>(map: &BTreeMap<Vec<u8>, Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let vec: Vec<(&Bytes, &Bytes)> = map
+            .iter()
+            .map(|(k, v)| (Bytes::new(k.as_slice()), Bytes::new(v.as_slice())))
+            .collect();
+        vec.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<BTreeMap<Vec<u8>, Vec<u8>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let vec: Vec<(ByteBuf, ByteBuf)> = Vec::deserialize(deserializer)?;
+        let map: BTreeMap<Vec<u8>, Vec<u8>> = vec
+            .into_iter()
+            .map(|(k, v)| (k.to_vec(), v.to_vec()))
+            .collect();
+        Ok(map)
     }
 }

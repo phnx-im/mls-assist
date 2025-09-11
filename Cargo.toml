@@ -15,3 +15,4 @@ openmls = { git = "https://github.com/openmls/openmls.git", rev = "e19efc810cf6c
 openmls_rust_crypto = { git = "https://github.com/openmls/openmls.git", rev = "e19efc810cf6c703b2ec8cc4fd7661a3c17e42d1" }
 thiserror = "2.0"
 chrono = { version = "0.4", features = ["serde"] }
+serde_bytes = "0.11.17"
