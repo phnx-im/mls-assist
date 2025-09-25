@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use openmls::prelude::ProcessMessageError;
+use openmls::group::PublicProcessMessageError;
 use openmls_traits::{
     public_storage::PublicStorageProvider as PublicStorageProviderTrait, storage::CURRENT_VERSION,
 };
@@ -31,7 +31,7 @@ pub enum ProcessAssistedMessageError {
     InvalidGroupInfoMessage,
     /// See [`ProcessMessageError`] for more details.
     #[error(transparent)]
-    ProcessMessageError(#[from] ProcessMessageError),
+    ProcessMessageError(#[from] PublicProcessMessageError),
     /// Unknown sender.
     #[error("Unknown sender.")]
     UnknownSender,
